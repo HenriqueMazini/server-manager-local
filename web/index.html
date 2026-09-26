@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <script>
+      // Mesmo cálculo de src/theme.ts, aplicado antes da primeira pintura.
+      (function () {
+        var n = new Date(), h = n.getHours(), d = new Date(n);
+        d.setMinutes(0, 0, 0);
+        if (h >= 6 && h < 18) d.setHours(6);
+        else if (h >= 18) d.setHours(18);
+        else { d.setDate(d.getDate() - 1); d.setHours(18); }
+        var t = h >= 6 && h < 18 ? 'light' : 'dark';
+        try {
+          var m = JSON.parse(localStorage.getItem('sm-theme') || 'null');
+          if (m && m.period === d.getTime() && (m.theme === 'light' || m.theme === 'dark')) t = m.theme;
+        } catch (e) {}
+        document.documentElement.dataset.theme = t;
+      })();
+    </script>
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <title>Server Manager</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

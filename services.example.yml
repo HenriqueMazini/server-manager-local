@@ -1,0 +1,54 @@
+# Configuração do Server Manager (opcional).
+#
+# Copie para services.yml e ajuste:   cp services.example.yml services.yml
+# O painel relê o services.yml sozinho quando ele muda. Sem o arquivo, cada projeto
+# docker compose e cada container avulso aparece sozinho na lista.
+#
+# O jeito mais fácil de preencher é o botão "Criar server" do painel, que analisa a pasta do
+# projeto e mostra o bloco pronto, ou pedir ao Claude Code do projeto que siga
+# docs/ADICIONAR-PROJETO.md.
+#
+# projects.<chave>
+#   name:        nome exibido
+#   dir:         pasta raiz do projeto (aceita ~)
+#   compose:     projetos docker compose que fazem parte (nome do projeto compose)
+#   containers:  containers avulsos (criados com docker run) que fazem parte
+#   apps:        processos de desenvolvimento que o painel roda num container Node
+#     key:       identificador curto (o container se chama sm-<projeto>-<key>)
+#     name:      nome exibido
+#     dir:       pasta do app, relativa ao dir do projeto
+#     command:   comando de desenvolvimento, como você roda no terminal
+#     port:      porta em que o app escuta (também vira a variável PORT)
+#     url:       link de acesso (padrão http://localhost:<port>)
+#     image:     imagem Node (padrão node:24-bookworm-slim)
+#     env:       variáveis extras
+#
+# Ligar um projeto sobe os containers, espera os bancos ficarem saudáveis e então sobe os apps,
+# na ordem da lista. Desligar faz o caminho inverso.
+#
+# hide: projetos, projetos compose ou containers que não devem aparecer.
+# ports.reserved: portas que nunca serão sugeridas como porta livre (a do painel, 9090, já é).
+
+projects:
+  loja:
+    name: Loja
+    dir: ~/projetos/loja
+    compose: [loja]
+    containers: []
+    apps:
+      - key: web
+        name: Sistema
+        dir: frontend
+        command: npm run dev
+        port: 5173
+      - key: api
+        name: API
+        dir: backend
+        command: npm run start:dev
+        port: 3001
+        url: http://localhost:3001/docs
+
+hide: []
+
+ports:
+  reserved: []

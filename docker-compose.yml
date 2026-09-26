@@ -1,0 +1,30 @@
+services:
+  server-manager:
+    build: .
+    image: server-manager:local
+    container_name: server-manager
+    # Rede do host: o painel escuta direto em 127.0.0.1:9090 e enxerga as portas em uso da máquina.
+    network_mode: host
+    # Roda com o seu usuário, para ler seus projetos e para os apps criarem arquivos em seu nome.
+    # HOST_UID, HOST_GID e DOCKER_GID ficam no .env, gerado por scripts/install.sh.
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    group_add: ["${DOCKER_GID:?defina DOCKER_GID no .env: rode scripts/install.sh}"]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Pasta do Server Manager, só leitura: o services.yml é opcional e relido sozinho quando muda.
+      - ./:/config:ro
+      # Sua home, só leitura: lista ~/projetos no "Criar server" e lê ~/.claude/sessions.
+      # Monta a home, e não ~/projetos, para o Docker não criar a pasta quando ela não existe.
+      - ${HOME}:${HOME}:ro
+      # Processos do computador, só leitura: memória das sessões do Claude Code.
+      - /proc:/host/proc:ro
+    environment:
+      SM_ADDR: 127.0.0.1:9090
+      SM_CONFIG: /config/services.yml
+      SM_APP_USER: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+      SM_HOST_HOME: ${HOME}
+    restart: unless-stopped
+    # O painel não lista nem desliga a si mesmo.
+    labels:
+      server-manager.self: "true"
+    mem_limit: 128m
