@@ -78,16 +78,27 @@ export function ClaudeRow({ claude: c, color, selected, onSelect }: { claude: Cl
   )
 }
 
-function since(iso?: string): string {
+function ago(iso?: string): string {
   if (!iso) return ''
   const ms = Date.now() - Date.parse(iso)
-  if (!(ms > 0)) return ''
+  if (!(ms >= 0)) return ''
   const m = Math.floor(ms / 60000)
   const h = Math.floor(m / 60)
   const d = Math.floor(h / 24)
-  if (d) return `aberta há ${d}d ${h % 24}h`
-  if (h) return `aberta há ${h}h ${m % 60}min`
-  return `aberta há ${m}min`
+  if (d) return `${d}d ${h % 24}h`
+  if (h) return `${h}h ${m % 60}min`
+  if (m) return `${m}min`
+  return 'agora'
+}
+
+function updated(iso?: string): string {
+  const a = ago(iso)
+  return a === 'agora' ? 'atualizada agora' : a && `atualizada há ${a}`
+}
+
+function since(iso?: string): string {
+  const a = ago(iso)
+  return a && a !== 'agora' ? `aberta há ${a}` : ''
 }
 
 export function ClaudeDetail({ claude: c, color, onClose }: { claude: ClaudeSummary; color: string; onClose: () => void }) {
@@ -97,7 +108,7 @@ export function ClaudeDetail({ claude: c, color, onClose }: { claude: ClaudeSumm
         <ClaudeMark className="mt-1 text-faint" />
         <div className="min-w-0 flex-1">
           <h2 className="text-base font-semibold tracking-tight">Sessões do Claude</h2>
-          <p className="mt-0.5 text-xs text-faint">{summaryText(c)} · processos do Claude Code nesta máquina, com servidores MCP e comandos em execução</p>
+          <p className="mt-0.5 text-xs text-faint">{summaryText(c)} · trabalhando primeiro, depois pela última atualização</p>
         </div>
         <div className="text-right">
           <div className="tabular font-mono text-sm">{c.memUsed > 0 ? bytes(c.memUsed) : '—'}</div>
@@ -127,6 +138,7 @@ export function ClaudeDetail({ claude: c, color, onClose }: { claude: ClaudeSumm
                     <div className="flex items-baseline gap-2">
                       <span className="truncate text-sm font-medium">{s.name}</span>
                       <span className={cx('shrink-0 text-[11px]', toneText[v.tone])}>{v.label}</span>
+                      {s.updatedAt && <span className="shrink-0 text-[11px] text-faint">· {updated(s.updatedAt)}</span>}
                     </div>
                     <div className="truncate font-mono text-[11px] text-faint">
                       {[s.cwd, since(s.startedAt), s.version && `v${s.version}`, `pid ${s.pid}`].filter(Boolean).join(' · ')}

@@ -10,6 +10,7 @@ import { MemoryCard } from './components/MemoryCard'
 import { ProjectDetail, ProjectRow } from './components/ProjectCard'
 import { Conflicts } from './components/Conflicts'
 import { PortsTable } from './components/PortsTable'
+import { SystemMemory } from './components/SystemMemory'
 import { cx, Dot, Icon, Spinner, useToast } from './components/ui'
 
 // Depois da resposta, o painel mantém o estado pedido até o snapshot confirmar (ou até este prazo).
@@ -131,9 +132,9 @@ export default function App() {
       <div className="mx-auto w-full max-w-7xl shrink-0 px-4 pt-5 sm:px-6">
         <header className="mb-4 flex items-center gap-3">
           <Logo />
-          <div className="flex-1">
+          <div className="min-w-0 flex-1">
             <h1 className="text-base font-semibold tracking-tight">Server Manager</h1>
-            <p className="text-xs text-faint">
+            <p className="truncate text-xs text-faint">
               {snap ? (
                 <>
                   {on} de {projects.length} {projects.length === 1 ? 'projeto ligado' : 'projetos ligados'} · {bytes(devMem)} em uso
@@ -146,10 +147,11 @@ export default function App() {
           <button
             type="button"
             onClick={() => setCreating(true)}
-            className="inline-flex items-center gap-1.5 rounded-full bg-fg px-3 py-1.5 text-xs font-medium text-bg transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-on"
+            aria-label="Criar server"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-fg px-3 py-1.5 text-xs font-medium text-bg transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-on"
           >
             <Icon name="plus" className="size-3.5" />
-            Criar server
+            <span className="hidden sm:inline">Criar server</span>
           </button>
           <LiveBadge connection={connection} />
           <button
@@ -171,8 +173,9 @@ export default function App() {
         )}
 
         {snap && (
-          <div className="mb-4">
+          <div className="mb-4 grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
             <MemoryCard host={snap.host} projects={projects} claude={claude} colors={colors} history={history} />
+            <SystemMemory host={snap.host} apps={snap.apps ?? []} />
           </div>
         )}
       </div>
@@ -256,12 +259,12 @@ function LiveBadge({ connection }: { connection: Connection }) {
   return (
     <span
       className={cx(
-        'inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-1 text-xs',
+        'inline-flex shrink-0 items-center gap-2 rounded-full border border-line bg-surface px-2.5 py-1.5 text-xs sm:px-3 sm:py-1',
         live ? 'text-muted' : 'text-warn-ink',
       )}
     >
       <Dot tone={live ? 'on' : 'warn'} pulse={live} />
-      {live ? 'ao vivo' : connection === 'connecting' ? 'conectando' : 'reconectando'}
+      <span className="hidden sm:inline">{live ? 'ao vivo' : connection === 'connecting' ? 'conectando' : 'reconectando'}</span>
     </span>
   )
 }

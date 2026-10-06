@@ -19,6 +19,8 @@ desenvolvimento como `npm run dev`, e liga ou desliga o conjunto de uma vez.
 - **Reinicia para liberar memória.** Servidores de desenvolvimento acumulam memória com o tempo.
   O botão de reiniciar mata a árvore inteira de processos e mostra quanto foi liberado.
 - **Mostra a memória em tempo real.** Quanto cada projeto consome, atualizado a cada 2 segundos.
+- **Mostra quem mais usa a memória da máquina.** Ao lado da memória dos ambientes, um cartão
+  mostra o uso total do computador e os aplicativos acima de 1 GB, como navegador e editor.
 - **Acompanha as sessões do Claude Code.** O primeiro item da lista mostra cada sessão aberta, com
   pasta, estado e memória, incluindo os servidores MCP e os comandos que ela está rodando.
 - **Analisa projetos novos.** O botão "Criar server" lista as pastas de `~/projetos`, analisa a
@@ -230,6 +232,7 @@ cd web && npm run typecheck && npm run build            # build embutido no bin�
 | `internal/control` | ordem de ligar, desligar e reiniciar um projeto |
 | `internal/analyze` | análise do "Criar server" e os prompts de cada pendência |
 | `internal/claude` | sessões do Claude Code e a memória de cada uma |
+| `internal/procfs` | leitura dos processos da máquina e agrupamento por aplicativo |
 | `internal/ports` | conflitos de porta e porta livre sugerida |
 | `internal/hostinfo` | memória e portas em uso da máquina |
 | `internal/state` | estado em memória, atualizado por eventos do Docker e a cada 2 s |

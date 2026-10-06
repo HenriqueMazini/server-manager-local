@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"servermanager/internal/claude"
+	"servermanager/internal/procfs"
 )
 
 // Port é uma porta publicada no host por um container.
@@ -139,4 +140,5 @@ type Snapshot struct {
 	Conflicts []Conflict     `json:"conflicts"`
 	Listeners []HostListener `json:"listeners"`
 	Claude    claude.Summary `json:"claude"`
+	Apps      []procfs.App   `json:"apps"` // aplicativos que mais usam memória na máquina
 }

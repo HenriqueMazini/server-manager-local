@@ -11,6 +11,16 @@ Anote cada mudança em **Não lançado** no mesmo commit que a faz. O script
 
 ## [Não lançado]
 
+### Adicionado
+- Cartão "Memória do computador" no topo, ao lado da memória dos ambientes: uso total da máquina,
+  cache, memória disponível e os aplicativos acima de 1 GB, com os processos de cada um somados.
+
+### Alterado
+- Sessões do Claude ordenadas por quem está trabalhando e, depois, pela última atualização, que
+  aparece em cada linha.
+- No celular, "Criar server" e "ao vivo" viram só ícone para o cabeçalho caber numa linha.
+- Sessões do Claude e aplicativos da máquina usam uma única leitura do `/proc` por atualização.
+
 ## [0.5.0] - 2026-09-26
 
 ### Adicionado

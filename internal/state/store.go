@@ -15,6 +15,7 @@ import (
 	"servermanager/internal/hostinfo"
 	"servermanager/internal/model"
 	"servermanager/internal/ports"
+	"servermanager/internal/procfs"
 	"servermanager/internal/projects"
 	"servermanager/internal/version"
 )
@@ -40,6 +41,9 @@ func procRoot() string {
 	}
 	return "/proc"
 }
+
+// TopAppsCount é quantos aplicativos o snapshot traz; o painel mostra só os acima de 1 GB.
+const TopAppsCount = 12
 
 // SelfName identifica a porta do painel no inventário de listeners.
 const SelfName = "server-manager"
@@ -160,7 +164,10 @@ func (s *Store) tick(ctx context.Context) {
 	reserved := append([]uint16{SelfPort}, cfg.Ports.Reserved...)
 	pr := ports.Analyze(all, listeners, reserved)
 	snap.Projects, snap.Ports, snap.Conflicts, snap.Listeners = svcs, pr.Entries, pr.Conflicts, pr.Listeners
-	snap.Claude = claude.Read(ProcRoot, filepath.Join(config.HostHome, ".claude", "sessions"), config.HostHome)
+	// Uma leitura do /proc por atualização alimenta as sessões do Claude e os aplicativos da máquina.
+	procs := procfs.Scan(ProcRoot)
+	snap.Claude = claude.FromProcs(procs, filepath.Join(config.HostHome, ".claude", "sessions"), config.HostHome)
+	snap.Apps = procfs.TopApps(procs, TopAppsCount)
 	if snap.Projects == nil {
 		snap.Projects = []model.Project{}
 	}

@@ -108,12 +108,15 @@ export type ClaudeSession = {
   status: 'busy' | 'waiting' | 'idle' | 'unknown' | string
   version?: string
   startedAt?: string
+  updatedAt?: string
   memUsed: number
   procs: number
   children: ClaudeChild[]
 }
 
 export type ClaudeSummary = { available: boolean; sessions: ClaudeSession[]; memUsed: number }
+
+export type HostApp = { name: string; memUsed: number; procs: number }
 
 export type Snapshot = {
   at: string
@@ -125,4 +128,5 @@ export type Snapshot = {
   ports: PortEntry[]
   conflicts: Conflict[]
   claude: ClaudeSummary
+  apps: HostApp[]
 }

@@ -7,7 +7,6 @@
 package claude
 
 import (
-	"bufio"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -15,6 +14,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"servermanager/internal/procfs"
 )
 
 // Session é uma sessão do Claude Code em execução.
@@ -25,7 +26,8 @@ type Session struct {
 	Status    string    `json:"status"` // busy | waiting | idle | unknown
 	Version   string    `json:"version,omitempty"`
 	StartedAt time.Time `json:"startedAt,omitempty"`
-	MemUsed   uint64    `json:"memUsed"` // sessão + processos filhos (MCP, comandos), em bytes
+	UpdatedAt time.Time `json:"updatedAt,omitempty"` // última mudança de estado registrada pelo Claude Code
+	MemUsed   uint64    `json:"memUsed"`             // sessão + processos filhos (MCP, comandos), em bytes
 	Procs     int       `json:"procs"`
 	Children  []Child   `json:"children"`
 }
@@ -43,18 +45,14 @@ type Summary struct {
 	MemUsed   uint64    `json:"memUsed"`
 }
 
-type proc struct {
-	pid, ppid int
-	comm      string
-	start     string
-	rss       uint64
-	args      string
+// Read monta o resumo a partir de /proc (procRoot). sessionsDir é ~/.claude/sessions.
+func Read(procRoot, sessionsDir, home string) Summary {
+	return FromProcs(procfs.Scan(procRoot), sessionsDir, home)
 }
 
-// Read monta o resumo. procRoot é o /proc do computador; sessionsDir é ~/.claude/sessions.
-func Read(procRoot, sessionsDir, home string) Summary {
+// FromProcs monta o resumo a partir de uma tabela de processos já lida.
+func FromProcs(procs map[int]procfs.Proc, sessionsDir, home string) Summary {
 	out := Summary{Sessions: []Session{}}
-	procs := scan(procRoot)
 	if len(procs) == 0 {
 		return out
 	}
@@ -62,18 +60,18 @@ func Read(procRoot, sessionsDir, home string) Summary {
 
 	children := map[int][]int{}
 	for _, p := range procs {
-		children[p.ppid] = append(children[p.ppid], p.pid)
+		children[p.PPID] = append(children[p.PPID], p.PID)
 	}
 
 	// Sessão = processo "claude" cujo pai não é outro "claude".
 	for _, p := range procs {
-		if p.comm != "claude" {
+		if p.Comm != "claude" {
 			continue
 		}
-		if parent, ok := procs[p.ppid]; ok && parent.comm == "claude" {
+		if parent, ok := procs[p.PPID]; ok && parent.Comm == "claude" {
 			continue
 		}
-		s := Session{PID: p.pid, Name: "claude " + strings.TrimSpace(strings.TrimPrefix(p.args, "claude")), Status: "unknown", Children: []Child{}}
+		s := Session{PID: p.PID, Name: "claude " + strings.TrimSpace(strings.TrimPrefix(p.Args(), "claude")), Status: "unknown", Children: []Child{}}
 		if meta, ok := readMeta(sessionsDir, p); ok {
 			if meta.Name != "" {
 				s.Name = meta.Name
@@ -86,20 +84,23 @@ func Read(procRoot, sessionsDir, home string) Summary {
 			if meta.StartedAt > 0 {
 				s.StartedAt = time.UnixMilli(meta.StartedAt)
 			}
+			if t := max(meta.UpdatedAt, meta.StatusAt); t > 0 {
+				s.UpdatedAt = time.UnixMilli(t)
+			}
 		}
 		if strings.TrimSpace(s.Name) == "claude" {
 			s.Name = "claude"
 		}
 		// Soma a árvore inteira: servidores MCP, comandos em execução, subagentes.
-		stack := []int{p.pid}
+		stack := []int{p.PID}
 		for len(stack) > 0 {
 			pid := stack[len(stack)-1]
 			stack = stack[:len(stack)-1]
 			q := procs[pid]
-			s.MemUsed += q.rss
+			s.MemUsed += q.RSS
 			s.Procs++
-			if pid != p.pid && q.rss > 0 {
-				s.Children = append(s.Children, Child{Name: childName(q), MemUsed: q.rss})
+			if pid != p.PID && q.RSS > 0 {
+				s.Children = append(s.Children, Child{Name: childName(q), MemUsed: q.RSS})
 			}
 			stack = append(stack, children[pid]...)
 		}
@@ -107,8 +108,22 @@ func Read(procRoot, sessionsDir, home string) Summary {
 		out.Sessions = append(out.Sessions, s)
 		out.MemUsed += s.MemUsed
 	}
-	sort.Slice(out.Sessions, func(i, j int) bool { return out.Sessions[i].MemUsed > out.Sessions[j].MemUsed })
+	sortSessions(out.Sessions)
 	return out
+}
+
+// sortSessions põe primeiro quem está trabalhando; dentro de cada grupo, a atualização mais recente.
+func sortSessions(ss []Session) {
+	sort.SliceStable(ss, func(i, j int) bool {
+		bi, bj := ss[i].Status == "busy", ss[j].Status == "busy"
+		if bi != bj {
+			return bi
+		}
+		if !ss[i].UpdatedAt.Equal(ss[j].UpdatedAt) {
+			return ss[i].UpdatedAt.After(ss[j].UpdatedAt)
+		}
+		return ss[i].PID > ss[j].PID
+	})
 }
 
 type meta struct {
@@ -118,92 +133,31 @@ type meta struct {
 	Status    string `json:"status"`
 	Version   string `json:"version"`
 	StartedAt int64  `json:"startedAt"`
+	UpdatedAt int64  `json:"updatedAt"`
+	StatusAt  int64  `json:"statusUpdatedAt"`
 	ProcStart string `json:"procStart"`
 }
 
 // readMeta só aceita o arquivo se o início do processo bate: PID reaproveitado não herda a sessão antiga.
-func readMeta(dir string, p proc) (meta, bool) {
-	b, err := os.ReadFile(filepath.Join(dir, strconv.Itoa(p.pid)+".json"))
+func readMeta(dir string, p procfs.Proc) (meta, bool) {
+	b, err := os.ReadFile(filepath.Join(dir, strconv.Itoa(p.PID)+".json"))
 	if err != nil {
 		return meta{}, false
 	}
 	var m meta
-	if json.Unmarshal(b, &m) != nil || m.PID != p.pid {
+	if json.Unmarshal(b, &m) != nil || m.PID != p.PID {
 		return meta{}, false
 	}
-	if m.ProcStart != "" && m.ProcStart != p.start {
+	if m.ProcStart != "" && m.ProcStart != p.Start {
 		return meta{}, false
 	}
 	return m, true
 }
 
-func scan(root string) map[int]proc {
-	entries, err := os.ReadDir(root)
-	if err != nil {
-		return nil
-	}
-	out := make(map[int]proc, len(entries))
-	for _, e := range entries {
-		pid, err := strconv.Atoi(e.Name())
-		if err != nil {
-			continue
-		}
-		dir := filepath.Join(root, e.Name())
-		p, ok := readStat(dir, pid)
-		if !ok {
-			continue
-		}
-		p.rss = readRSS(dir)
-		if b, err := os.ReadFile(filepath.Join(dir, "cmdline")); err == nil {
-			p.args = strings.TrimSpace(strings.ReplaceAll(string(b), "\x00", " "))
-		}
-		out[pid] = p
-	}
-	return out
-}
-
-// readStat lê pid, comm, ppid e o início do processo (campo 22) de /proc/<pid>/stat.
-func readStat(dir string, pid int) (proc, bool) {
-	b, err := os.ReadFile(filepath.Join(dir, "stat"))
-	if err != nil {
-		return proc{}, false
-	}
-	s := string(b)
-	open, close := strings.IndexByte(s, '('), strings.LastIndexByte(s, ')')
-	if open < 0 || close < open {
-		return proc{}, false
-	}
-	f := strings.Fields(s[close+1:])
-	if len(f) < 20 {
-		return proc{}, false
-	}
-	ppid, _ := strconv.Atoi(f[1])
-	return proc{pid: pid, ppid: ppid, comm: s[open+1 : close], start: f[19]}, true
-}
-
-func readRSS(dir string) uint64 {
-	f, err := os.Open(filepath.Join(dir, "status"))
-	if err != nil {
-		return 0
-	}
-	defer f.Close()
-	sc := bufio.NewScanner(f)
-	for sc.Scan() {
-		if v, ok := strings.CutPrefix(sc.Text(), "VmRSS:"); ok {
-			fields := strings.Fields(v)
-			if len(fields) > 0 {
-				n, _ := strconv.ParseUint(fields[0], 10, 64)
-				return n * 1024
-			}
-		}
-	}
-	return 0
-}
-
-func childName(p proc) string {
-	a := p.args
+func childName(p procfs.Proc) string {
+	a := p.Args()
 	if a == "" {
-		return p.comm
+		return p.Comm
 	}
 	if i := strings.Index(a, "/.claude/mcp/"); i >= 0 {
 		rest := a[i+len("/.claude/mcp/"):]

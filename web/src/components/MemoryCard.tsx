@@ -25,7 +25,7 @@ export function MemoryCard({
   const [value, unit] = bytesParts(total)
 
   return (
-    <section className="rounded-2xl border border-line bg-surface px-5 py-4">
+    <section className="h-full rounded-2xl border border-line bg-surface px-5 py-4">
       <div className="flex items-start justify-between gap-6">
         <div>
           <h2 className="text-xs font-medium uppercase tracking-[0.12em] text-faint">Memória dos ambientes de desenvolvimento</h2>

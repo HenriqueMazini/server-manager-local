@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func fakeProc(t *testing.T, root string, pid, ppid int, comm, start string, rssKB int, args string) {
@@ -55,7 +56,7 @@ func TestRead(t *testing.T) {
 	fakeProc(t, procDir, 204, 200, "claude", "792", 200000, "claude\x00--subagent")
 	fakeProc(t, procDir, 300, 100, "claude", "900", 350000, "claude")
 
-	must(t, os.WriteFile(filepath.Join(sessDir, "200.json"), []byte(`{"pid":200,"cwd":"/home/u/projetos/loja","name":"loja","status":"busy","version":"2.1.281","startedAt":1790000000000,"procStart":"777"}`), 0o644))
+	must(t, os.WriteFile(filepath.Join(sessDir, "200.json"), []byte(`{"pid":200,"cwd":"/home/u/projetos/loja","name":"loja","status":"busy","version":"2.1.281","startedAt":1790000000000,"updatedAt":1790000500000,"procStart":"777"}`), 0o644))
 	// PID 300 reaproveitado: arquivo de outra sessão, com início diferente.
 	must(t, os.WriteFile(filepath.Join(sessDir, "300.json"), []byte(`{"pid":300,"name":"velha","status":"idle","procStart":"1"}`), 0o644))
 	// Sessão encerrada: arquivo sem processo.
@@ -66,7 +67,7 @@ func TestRead(t *testing.T) {
 		t.Fatalf("esperava 2 sessões (o claude filho é subagente): %+v", s)
 	}
 	a := s.Sessions[0]
-	if a.Name != "loja" || a.Cwd != "~/projetos/loja" || a.Status != "busy" || a.Version != "2.1.281" {
+	if a.Name != "loja" || a.Cwd != "~/projetos/loja" || a.Status != "busy" || a.Version != "2.1.281" || a.UpdatedAt.UnixMilli() != 1790000500000 {
 		t.Errorf("metadados = %+v", a)
 	}
 	want := uint64(400000+70000+3000+100000+200000) * 1024
@@ -88,5 +89,27 @@ func TestRead(t *testing.T) {
 func TestReadWithoutProc(t *testing.T) {
 	if s := Read(filepath.Join(t.TempDir(), "nada"), "", ""); s.Available || len(s.Sessions) != 0 {
 		t.Errorf("sem /proc não há sessões: %+v", s)
+	}
+}
+
+func TestSortSessions(t *testing.T) {
+	at := func(m int64) time.Time { return time.UnixMilli(m) }
+	ss := []Session{
+		{PID: 1, Name: "ociosa-antiga", Status: "idle", UpdatedAt: at(100)},
+		{PID: 2, Name: "trabalhando-antiga", Status: "busy", UpdatedAt: at(200)},
+		{PID: 3, Name: "aguardando-recente", Status: "waiting", UpdatedAt: at(900)},
+		{PID: 4, Name: "trabalhando-recente", Status: "busy", UpdatedAt: at(800)},
+		{PID: 5, Name: "sem-metadados", Status: "unknown"},
+	}
+	sortSessions(ss)
+	var got []string
+	for _, s := range ss {
+		got = append(got, s.Name)
+	}
+	want := []string{"trabalhando-recente", "trabalhando-antiga", "aguardando-recente", "ociosa-antiga", "sem-metadados"}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("ordem = %v, quero %v", got, want)
+		}
 	}
 }
