@@ -6,6 +6,7 @@ import (
 	"os"
 	"regexp"
 	"sort"
+	"strings"
 
 	"servermanager/internal/config"
 	"servermanager/internal/dockerx"
@@ -134,10 +135,8 @@ func Build(infos []dockerx.Info, mem map[string]dockerx.Mem, listeners []model.H
 			b.addApp(key, a, spec, in, exists)
 		}
 	}
-	// Apps que saíram do services.yml mas ainda existem: aparecem soltos para poderem ser desligados.
-	for _, in := range apps {
-		b.addInfra(in.Name, "standalone", in)
-	}
+	// Containers de apps que saíram do services.yml (projeto ou app renomeado) não viram projeto:
+	// aparecem no aviso de sobras, via Orphans.
 
 	out := make([]model.Project, 0, len(b.byKey))
 	for key, p := range b.byKey {
@@ -147,13 +146,63 @@ func Build(infos []dockerx.Info, mem map[string]dockerx.Mem, listeners []model.H
 		}
 		out = append(out, *p)
 	}
-	sort.Slice(out, func(i, j int) bool {
-		if (out[i].Kind == "configured") != (out[j].Kind == "configured") {
-			return out[i].Kind == "configured"
-		}
-		return out[i].Name < out[j].Name
-	})
+	Sort(out)
 	return out, b.all
+}
+
+// Orphans lista os containers de app criados pelo painel cujo projeto ou app não existe mais no
+// services.yml. Acontece ao renomear a chave de um projeto: o painel cria containers com o nome
+// novo e os antigos ficam para trás.
+func Orphans(infos []dockerx.Info, cfg config.Config) []model.Orphan {
+	expected := map[string]bool{}
+	for key, p := range cfg.Projects {
+		for _, a := range p.Apps {
+			expected[AppContainerName(key, a.Key)] = true
+		}
+	}
+	out := []model.Orphan{}
+	for _, in := range infos {
+		project := in.Labels[dockerx.LabelAppProject]
+		if project == "" || expected[in.Name] {
+			continue
+		}
+		out = append(out, model.Orphan{
+			ID: in.ID, Name: in.Name, Project: project, App: in.Labels[dockerx.LabelAppKey],
+			Running: in.Running, Status: in.Status,
+		})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
+}
+
+// statusRank põe ligados (e iniciando) primeiro, depois parcialmente ligados, depois desligados.
+var statusRank = map[string]int{"on": 0, "starting": 0, "partial": 1, "off": 2}
+
+// accents tira os acentos do português para a ordem alfabética não jogar "Ácaro" depois de "Zebra".
+var accents = strings.NewReplacer(
+	"á", "a", "à", "a", "â", "a", "ã", "a", "ä", "a",
+	"é", "e", "ê", "e", "è", "e", "ë", "e",
+	"í", "i", "ì", "i", "î", "i", "ï", "i",
+	"ó", "o", "ô", "o", "õ", "o", "ò", "o", "ö", "o",
+	"ú", "u", "ù", "u", "û", "u", "ü", "u",
+	"ç", "c", "ñ", "n",
+)
+
+func sortName(s string) string { return accents.Replace(strings.ToLower(s)) }
+
+// Sort ordena os projetos por status e, dentro de cada status, por nome.
+func Sort(ps []model.Project) {
+	sort.SliceStable(ps, func(i, j int) bool {
+		ri, rj := statusRank[ps[i].State], statusRank[ps[j].State]
+		if ri != rj {
+			return ri < rj
+		}
+		ni, nj := sortName(ps[i].Name), sortName(ps[j].Name)
+		if ni != nj {
+			return ni < nj
+		}
+		return ps[i].Key < ps[j].Key
+	})
 }
 
 func (b *builder) project(key, kind string) *model.Project {

@@ -21,6 +21,7 @@ import (
 	"servermanager/internal/control"
 	"servermanager/internal/dockerx"
 	"servermanager/internal/labels"
+	"servermanager/internal/projects"
 	"servermanager/internal/state"
 	"servermanager/internal/version"
 )
@@ -41,6 +42,7 @@ func Handler(st *state.Store, dc *dockerx.Client, lb *labels.Store, web fs.FS) h
 	mux.HandleFunc("GET /api/events", a.events)
 	mux.HandleFunc("GET /api/ports", a.ports)
 	mux.HandleFunc("PUT /api/projects/{key}/alias", a.setAlias)
+	mux.HandleFunc("POST /api/orphans/remove", a.removeOrphans)
 	mux.HandleFunc("POST /api/projects/{key}/{action}", a.projectAction)
 	mux.HandleFunc("GET /api/containers/{id}/logs", a.logs)
 	mux.HandleFunc("POST /api/analyze", a.analyze)
@@ -199,6 +201,30 @@ func (a *api) analyze(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, res)
+}
+
+// removeOrphans apaga as sobras de apps. A lista é recalculada aqui, a partir do Docker e do
+// services.yml, e não vem do navegador: só containers criados pelo painel e sem projeto.
+func (a *api) removeOrphans(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := actionCtx(r)
+	defer cancel()
+	orphans := projects.Orphans(a.st.Infos(), a.st.Config())
+	results := make([]control.Result, 0, len(orphans))
+	var failed []string
+	for _, o := range orphans {
+		res := control.Result{Name: o.Name, OK: true}
+		if err := a.dc.Remove(ctx, o.ID); err != nil {
+			res.OK, res.Error = false, err.Error()
+			failed = append(failed, o.Name+": "+err.Error())
+		}
+		results = append(results, res)
+	}
+	a.st.Poke()
+	if len(failed) > 0 {
+		writeJSON(w, http.StatusBadGateway, map[string]any{"results": results, "error": strings.Join(failed, "; ")})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"results": results})
 }
 
 func (a *api) setAlias(w http.ResponseWriter, r *http.Request) {

@@ -129,6 +129,16 @@ type Conflict struct {
 	Prompt       string         `json:"prompt"`
 }
 
+// Orphan é um container de app criado pelo painel que não pertence mais a nenhum projeto.
+type Orphan struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Project string `json:"project"` // chave antiga do projeto
+	App     string `json:"app"`
+	Running bool   `json:"running"`
+	Status  string `json:"status"`
+}
+
 // Snapshot é o estado completo enviado ao painel.
 type Snapshot struct {
 	At        time.Time      `json:"at"`
@@ -141,5 +151,6 @@ type Snapshot struct {
 	Conflicts []Conflict     `json:"conflicts"`
 	Listeners []HostListener `json:"listeners"`
 	Claude    claude.Summary `json:"claude"`
-	Apps      []procfs.App   `json:"apps"` // aplicativos que mais usam memória na máquina
+	Apps      []procfs.App   `json:"apps"`
+	Orphans   []Orphan       `json:"orphans"` // sobras de apps renomeados, para remover // aplicativos que mais usam memória na máquina
 }

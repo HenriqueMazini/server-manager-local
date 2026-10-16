@@ -116,6 +116,12 @@ func (c *Client) ensureImage(ctx context.Context, ref string) error {
 	return nil
 }
 
+// Remove apaga um container, parando-o antes se preciso. Volumes não são apagados.
+func (c *Client) Remove(ctx context.Context, id string) error {
+	_, err := c.cli.ContainerRemove(ctx, id, client.ContainerRemoveOptions{Force: true})
+	return err
+}
+
 // State devolve se o container está ligado e o status do healthcheck ("" quando não há).
 func (c *Client) State(ctx context.Context, id string) (running bool, health string, err error) {
 	ins, err := c.cli.ContainerInspect(ctx, id, client.ContainerInspectOptions{})

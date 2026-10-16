@@ -138,3 +138,47 @@ func TestURLFor(t *testing.T) {
 		}
 	}
 }
+
+func TestSortByStatusThenName(t *testing.T) {
+	ps := []model.Project{
+		{Key: "z", Name: "Zebra", State: "on"},
+		{Key: "b", Name: "beta", State: "off"},
+		{Key: "a", Name: "Ácaro", State: "off"},
+		{Key: "m", Name: "Meio", State: "partial"},
+		{Key: "i", Name: "Inicio", State: "starting"},
+		{Key: "c", Name: "Casa", State: "on"},
+	}
+	Sort(ps)
+	var got []string
+	for _, p := range ps {
+		got = append(got, p.Name)
+	}
+	want := []string{"Casa", "Inicio", "Zebra", "Meio", "Ácaro", "beta"}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("ordem = %v, quero %v", got, want)
+		}
+	}
+}
+
+func TestOrphansAfterRename(t *testing.T) {
+	cfg, _ := config.Parse([]byte(vendasYAML))
+	app := func(id, name, project, key string, running bool) dockerx.Info {
+		return dockerx.Info{ID: id, Name: name, Running: running, Labels: map[string]string{dockerx.LabelAppProject: project, dockerx.LabelAppKey: key}}
+	}
+	infos := append(machine(),
+		app("w", "sm-vendas-web", "vendas", "web", true),        // atual
+		app("o1", "sm-antigo-web", "antigo", "web", false),      // projeto renomeado
+		app("o2", "sm-vendas-worker", "vendas", "worker", true), // app removido do projeto
+	)
+	got := Orphans(infos, cfg)
+	if len(got) != 2 || got[0].Name != "sm-antigo-web" || got[1].Name != "sm-vendas-worker" || !got[1].Running || got[0].Project != "antigo" {
+		t.Fatalf("sobras = %+v", got)
+	}
+	ps, _ := Build(infos, nil, nil, cfg)
+	for _, p := range ps {
+		if p.Key == "sm-antigo-web" || p.Key == "sm-vendas-worker" {
+			t.Errorf("sobra não pode virar projeto: %s", p.Key)
+		}
+	}
+}

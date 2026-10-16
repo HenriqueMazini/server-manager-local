@@ -2,27 +2,49 @@ import type { ClaudeSession, ClaudeSummary } from '../types'
 import { bytes } from '../format'
 import { cx, Dot, Icon, type Tone } from './ui'
 
-const statusView: Record<string, { tone: Tone; label: string }> = {
-  busy: { tone: 'on', label: 'trabalhando' },
-  waiting: { tone: 'warn', label: 'aguardando você' },
-  idle: { tone: 'off', label: 'ociosa' },
-}
+const DAY = 24 * 60 * 60 * 1000
+// Sessões paradas são classificadas pelo tempo desde a última atualização.
+export const RECENT_DAYS = 3 // até 3 dias: recente
+export const IDLE_DAYS = 7 // 7 dias ou mais: ociosa
 
-function view(s: ClaudeSession) {
-  return statusView[s.status] ?? { tone: 'off' as Tone, label: 'sem estado' }
+type View = { tone: Tone; label: string; key: 'busy' | 'waiting' | 'recent' | 'stale' | 'idle' }
+
+export function view(s: ClaudeSession, now = Date.now()): View {
+  if (s.status === 'busy') return { tone: 'on', label: 'trabalhando', key: 'busy' }
+  if (s.status === 'waiting') return { tone: 'warn', label: 'aguardando você', key: 'waiting' }
+  const updated = s.updatedAt ? Date.parse(s.updatedAt) : NaN
+  if (Number.isNaN(updated)) return { tone: 'off', label: 'parada', key: 'stale' }
+  const age = now - updated
+  if (age <= RECENT_DAYS * DAY) return { tone: 'warn', label: 'recente', key: 'recent' }
+  if (age >= IDLE_DAYS * DAY) return { tone: 'danger', label: 'ociosa', key: 'idle' }
+  return { tone: 'off', label: 'parada', key: 'stale' }
 }
 
 const toneText: Record<Tone, string> = { on: 'text-on-ink', warn: 'text-warn-ink', danger: 'text-danger', off: 'text-faint' }
+
+// Ordem dos grupos: trabalhando, aguardando você, ociosa, parada, recente. Dentro de cada grupo, por nome.
+const groupOrder: Record<View['key'], number> = { busy: 0, waiting: 1, idle: 2, stale: 3, recent: 4 }
+const collator = new Intl.Collator('pt-BR', { sensitivity: 'base', numeric: true })
+
+export function sortSessions(sessions: ClaudeSession[], now = Date.now()): ClaudeSession[] {
+  return [...sessions].sort((a, b) => {
+    const g = groupOrder[view(a, now).key] - groupOrder[view(b, now).key]
+    return g || collator.compare(a.name, b.name) || a.pid - b.pid
+  })
+}
 
 function summaryText(c: ClaudeSummary): string {
   if (!c.available) return 'indisponível'
   const n = c.sessions.length
   if (n === 0) return 'nenhuma sessão aberta'
-  const busy = c.sessions.filter((s) => s.status === 'busy').length
-  const waiting = c.sessions.filter((s) => s.status === 'waiting').length
+  const count = (k: View['key']) => c.sessions.filter((s) => view(s).key === k).length
   const parts = [`${n} ${n === 1 ? 'aberta' : 'abertas'}`]
+  const busy = count('busy')
+  const waiting = count('waiting')
+  const idle = count('idle')
   if (busy) parts.push(`${busy} trabalhando`)
   if (waiting) parts.push(`${waiting} aguardando você`)
+  if (idle) parts.push(`${idle} ${idle === 1 ? 'ociosa' : 'ociosas'}`)
   return parts.join(' · ')
 }
 
@@ -108,7 +130,13 @@ export function ClaudeDetail({ claude: c, color, onClose }: { claude: ClaudeSumm
         <ClaudeMark className="mt-1 text-faint" />
         <div className="min-w-0 flex-1">
           <h2 className="text-base font-semibold tracking-tight">Sessões do Claude</h2>
-          <p className="mt-0.5 text-xs text-faint">{summaryText(c)} · trabalhando primeiro, depois pela última atualização</p>
+          <p className="mt-0.5 text-xs text-faint">{summaryText(c)} · por grupo e, em cada grupo, por nome</p>
+          <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-faint">
+            <span className="inline-flex items-center gap-1.5"><Dot tone="on" /> trabalhando</span>
+            <span className="inline-flex items-center gap-1.5"><Dot tone="warn" /> recente: até {RECENT_DAYS} dias, ou aguardando você</span>
+            <span className="inline-flex items-center gap-1.5"><Dot tone="off" /> parada</span>
+            <span className="inline-flex items-center gap-1.5"><Dot tone="danger" /> ociosa: {IDLE_DAYS} dias ou mais</span>
+          </p>
         </div>
         <div className="text-right">
           <div className="tabular font-mono text-sm">{c.memUsed > 0 ? bytes(c.memUsed) : '—'}</div>
@@ -127,7 +155,7 @@ export function ClaudeDetail({ claude: c, color, onClose }: { claude: ClaudeSumm
         <p className="px-5 py-6 text-sm text-faint">Nenhuma sessão do Claude Code aberta agora.</p>
       ) : (
         <ul>
-          {c.sessions.map((s) => {
+          {sortSessions(c.sessions).map((s) => {
             const v = view(s)
             const extra = s.children.slice(0, 3)
             return (

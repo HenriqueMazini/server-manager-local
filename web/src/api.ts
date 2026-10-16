@@ -85,3 +85,11 @@ export async function setAlias(key: string, alias: string): Promise<string> {
   if (!res.ok) throw new Error(body.error ?? `Falha (${res.status})`)
   return body.alias ?? ''
 }
+
+// Remove as sobras de apps renomeados. O servidor decide quais são; o painel só pede.
+export async function removeOrphans(): Promise<number> {
+  const res = await fetch('/api/orphans/remove', { method: 'POST', headers: ACTION_HEADER })
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(body.error ?? `Falha (${res.status})`)
+  return (body.results ?? []).length
+}

@@ -119,6 +119,8 @@ export type ClaudeSummary = { available: boolean; sessions: ClaudeSession[]; mem
 
 export type HostApp = { name: string; memUsed: number; procs: number }
 
+export type Orphan = { id: string; name: string; project: string; app: string; running: boolean; status: string }
+
 export type Snapshot = {
   at: string
   version: string
@@ -130,4 +132,5 @@ export type Snapshot = {
   conflicts: Conflict[]
   claude: ClaudeSummary
   apps: HostApp[]
+  orphans: Orphan[]
 }

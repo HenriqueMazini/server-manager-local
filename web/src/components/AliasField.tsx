@@ -91,10 +91,9 @@ export function AliasField({ projectKey, alias, className }: { projectKey: strin
         onKeyDown={stop}
         title="Editar apelido"
         aria-label={`Editar apelido: ${shown}`}
-        className={cx('group/alias inline-flex items-baseline gap-1 font-normal text-faint hover:text-muted', className)}
+        className={cx('inline-flex items-baseline font-normal text-faint decoration-dotted underline-offset-4 hover:text-muted hover:underline', className)}
       >
         ({shown})
-        <Icon name="pencil" className="size-3 self-center opacity-0 transition-opacity group-hover/alias:opacity-100" />
       </button>
     )
   }

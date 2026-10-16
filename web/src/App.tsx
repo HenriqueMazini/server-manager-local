@@ -11,6 +11,7 @@ import { ProjectDetail, ProjectRow } from './components/ProjectCard'
 import { Conflicts } from './components/Conflicts'
 import { PortsTable } from './components/PortsTable'
 import { SystemMemory } from './components/SystemMemory'
+import { Orphans } from './components/Orphans'
 import { cx, Dot, Icon, Spinner, useToast } from './components/ui'
 
 // Depois da resposta, o painel mantém o estado pedido até o snapshot confirmar (ou até este prazo).
@@ -186,6 +187,8 @@ export default function App() {
         <main className="mx-auto grid w-full max-w-7xl flex-1 grid-cols-[minmax(0,1fr)] gap-4 px-4 pb-3 sm:px-6 lg:min-h-0 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
           <section className="scroll-area space-y-4 lg:min-h-0 lg:overflow-y-auto lg:pr-1" aria-label="Projetos">
             <Conflicts conflicts={snap.conflicts} />
+
+            <Orphans orphans={snap.orphans ?? []} />
 
             <div className="space-y-2">
               <h2 className="px-1 text-xs font-medium uppercase tracking-[0.12em] text-faint">

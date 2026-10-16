@@ -163,6 +163,7 @@ func (s *Store) tick(ctx context.Context) {
 	mem := s.dc.Memory(ctx, running)
 
 	svcs, all := projects.Build(infos, mem, listeners, cfg)
+	snap.Orphans = projects.Orphans(infos, cfg)
 	aliases := s.labels.All()
 	for i := range svcs {
 		svcs[i].Alias = aliases[svcs[i].Key]
@@ -210,6 +211,13 @@ func (s *Store) Subscribe() (<-chan model.Snapshot, func()) {
 		delete(s.subs, ch)
 		s.mu.Unlock()
 	}
+}
+
+// Infos devolve a última lista de containers lida do Docker.
+func (s *Store) Infos() []dockerx.Info {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.infos
 }
 
 // Config devolve o services.yml atual.

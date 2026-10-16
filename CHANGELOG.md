@@ -12,6 +12,9 @@ Anote cada mudança em **Não lançado** no mesmo commit que a faz. O script
 ## [Não lançado]
 
 ### Adicionado
+- Aviso de containers antigos sem projeto: apps que o painel criou para um projeto ou app renomeado no
+  services.yml saem da lista de projetos e aparecem num aviso com botão de remover, que pede confirmação.
+  `POST /api/orphans/remove` recalcula a lista no servidor.
 - Apelido por projeto, mostrado entre parênteses depois do nome, como "Loja (Vendas)". Serve para
   projetos que mudaram de nome enquanto o repositório e os containers mantêm o antigo. Clique para
   editar; grava ao sair do campo ou com Enter, Esc desfaz e apagar o texto remove o apelido.
@@ -23,6 +26,12 @@ Anote cada mudança em **Não lançado** no mesmo commit que a faz. O script
   cache, memória disponível e os aplicativos acima de 1 GB, com os processos de cada um somados.
 
 ### Alterado
+- Sessões do Claude classificadas pela última atualização: trabalhando (verde), recente até 3 dias
+  (amarelo), parada entre 3 e 7 dias (cinza) e ociosa com 7 dias ou mais (vermelho). Aguardando você
+  continua em amarelo. Legenda no cabeçalho das sessões. Ordem: trabalhando, aguardando você, ociosa,
+  parada e recente; em cada grupo, por nome.
+- Projetos listados por status (ligados, parcialmente ligados, desligados) e, em cada grupo, por nome.
+  A cor de cada projeto segue a ordem alfabética da chave, então mudar o status não repinta os outros.
 - Sessões do Claude ordenadas por quem está trabalhando e, depois, pela última atualização, que
   aparece em cada linha.
 - No celular, "Criar server" e "ao vivo" viram só ícone para o cabeçalho caber numa linha.
