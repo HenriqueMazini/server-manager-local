@@ -1,6 +1,7 @@
 import type { ClaudeSession, ClaudeSummary } from '../types'
 import { bytes } from '../format'
 import { cx, Dot, Icon, type Tone } from './ui'
+import { TINT_CLASSES, TINT_SELECTED_CLASSES, tintStyle } from '../colors'
 
 const DAY = 24 * 60 * 60 * 1000
 // Sessões paradas são classificadas pelo tempo desde a última atualização.
@@ -76,8 +77,15 @@ export function ClaudeRow({ claude: c, color, selected, onSelect }: { claude: Cl
       className={cx(
         'group min-w-0 rounded-xl border px-3.5 py-2 transition-colors',
         'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-on',
-        selected ? 'border-faint/60 bg-raised' : 'border-line bg-surface hover:border-faint/40',
+        c.memUsed > 0
+          ? selected
+            ? TINT_SELECTED_CLASSES
+            : TINT_CLASSES
+          : selected
+            ? 'border-faint/60 bg-raised'
+            : 'border-line bg-surface hover:border-faint/40',
       )}
+      style={c.memUsed > 0 ? tintStyle(color) : undefined}
     >
       <div className="flex items-center gap-3">
         <Dot tone={tone} pulse={busy} />
@@ -91,7 +99,7 @@ export function ClaudeRow({ claude: c, color, selected, onSelect }: { claude: Cl
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1.5 text-right">
-          {c.memUsed > 0 && <span className="size-1.5 rounded-full" style={{ background: color }} />}
+          {c.memUsed > 0 && <span className="size-2 rounded-full" style={{ background: color }} />}
           <span className="tabular w-14 font-mono text-xs text-muted">{c.memUsed > 0 ? bytes(c.memUsed) : '—'}</span>
         </div>
         <Icon name="chevronRight" className={cx('size-4 shrink-0 transition-colors', selected ? 'text-fg' : 'text-faint group-hover:text-muted')} />
@@ -141,7 +149,7 @@ export function ClaudeDetail({ claude: c, color, onClose }: { claude: ClaudeSumm
         <div className="text-right">
           <div className="tabular font-mono text-sm">{c.memUsed > 0 ? bytes(c.memUsed) : '—'}</div>
           <div className="mt-0.5 flex items-center justify-end gap-1.5 text-[11px] text-faint">
-            {c.memUsed > 0 && <span className="size-1.5 rounded-full" style={{ background: color }} />}
+            {c.memUsed > 0 && <span className="size-2 rounded-full" style={{ background: color }} />}
             memória
           </div>
         </div>

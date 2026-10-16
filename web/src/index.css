@@ -148,6 +148,8 @@ body {
   scrollbar-width: thin;
   scrollbar-color: var(--line) transparent;
   overscroll-behavior: contain;
+  /* Reserva o lugar da barra mesmo sem rolagem: os cartões não mudam de largura quando a lista cresce. */
+  scrollbar-gutter: stable;
 }
 
 /* Tudo que é clicável mostra a mãozinha; desativado mostra que não dá. */

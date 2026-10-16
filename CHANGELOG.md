@@ -11,6 +11,13 @@ Anote cada mudança em **Não lançado** no mesmo commit que a faz. O script
 
 ## [Não lançado]
 
+### Alterado
+- Gráfico dos últimos 3 minutos com zoom: a escala vai do mínimo ao máximo do período (faixa mínima de
+  64 MB ou 2%), com linhas guia, legenda "de X a Y" e valor de cada ponto ao passar o mouse.
+- Espaço entre os cartões e a barra de rolagem das colunas, com o lugar da barra sempre reservado.
+- Projetos ligados e a linha das sessões do Claude ganham borda leve e um brilho sutil por dentro da borda, na
+  cor do projeto no gráfico de memória, mais fortes quando selecionados. A bolinha de cor ficou maior.
+
 ## [0.6.0] - 2026-10-16
 
 ### Adicionado

@@ -4,6 +4,7 @@ import type { Container, Port, Project } from '../types'
 import { bytes, displayURL, isWeb, shortPath } from '../format'
 import { copyText, cx, Dot, Icon, Spinner, Switch, useToast, type Tone } from './ui'
 import { AliasField } from './AliasField'
+import { TINT_CLASSES, TINT_SELECTED_CLASSES, tintStyle } from '../colors'
 
 export type Pending = { running: boolean; busy: boolean; restarting?: boolean }
 
@@ -134,9 +135,15 @@ export function ProjectRow({
       className={cx(
         'group min-w-0 cursor-pointer rounded-xl border px-3.5 py-2 transition-colors',
         'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-on',
-        selected ? 'border-faint/60 bg-raised' : 'border-line bg-surface hover:border-faint/40',
-        !on && !selected && 'bg-surface/60',
+        on && color
+          ? selected
+            ? TINT_SELECTED_CLASSES
+            : TINT_CLASSES
+          : selected
+            ? 'border-faint/60 bg-raised'
+            : 'border-line bg-surface/60 hover:border-faint/40',
       )}
+      style={on && color ? tintStyle(color) : undefined}
     >
       <div className="flex items-center gap-3">
         <Dot tone={tone} />
@@ -151,7 +158,7 @@ export function ProjectRow({
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1.5 text-right">
-          {on && <span className="size-1.5 rounded-full" style={{ background: color }} />}
+          {on && <span className="size-2 rounded-full" style={{ background: color }} />}
           <span className="tabular w-14 font-mono text-xs text-muted">{on ? bytes(p.memUsed) : '—'}</span>
         </div>
         <Controls project={p} {...actions} />
@@ -204,7 +211,7 @@ export function ProjectDetail({ project: p, color, onClose, ...actions }: { proj
         <div className="hidden text-right sm:block">
           <div className="tabular font-mono text-sm">{on ? bytes(p.memUsed) : '—'}</div>
           <div className="mt-0.5 flex items-center justify-end gap-1.5 text-[11px] text-faint">
-            {on && <span className="size-1.5 rounded-full" style={{ background: color }} />}
+            {on && <span className="size-2 rounded-full" style={{ background: color }} />}
             memória
           </div>
         </div>
