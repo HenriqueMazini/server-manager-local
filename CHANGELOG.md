@@ -12,6 +12,13 @@ Anote cada mudança em **Não lançado** no mesmo commit que a faz. O script
 ## [Não lançado]
 
 ### Adicionado
+- Apelido por projeto, mostrado entre parênteses depois do nome, como "Loja (Vendas)". Serve para
+  projetos que mudaram de nome enquanto o repositório e os containers mantêm o antigo. Clique para
+  editar; grava ao sair do campo ou com Enter, Esc desfaz e apagar o texto remove o apelido.
+- Pasta `data/`, a única gravável do painel, onde ficam os apelidos (`data/apelidos.json`). O
+  `scripts/install.sh` cria a pasta. `PUT /api/projects/{chave}/alias`.
+
+### Adicionado
 - Cartão "Memória do computador" no topo, ao lado da memória dos ambientes: uso total da máquina,
   cache, memória disponível e os aplicativos acima de 1 GB, com os processos de cada um somados.
 
@@ -20,6 +27,10 @@ Anote cada mudança em **Não lançado** no mesmo commit que a faz. O script
   aparece em cada linha.
 - No celular, "Criar server" e "ao vivo" viram só ícone para o cabeçalho caber numa linha.
 - Sessões do Claude e aplicativos da máquina usam uma única leitura do `/proc` por atualização.
+
+### Corrigido
+- Cartão de conflito de porta quebrado na coluna estreita: o texto ficava espremido com uma palavra
+  por linha. Agora a porta e os botões ficam numa linha e a explicação embaixo, em largura total.
 
 ## [0.5.0] - 2026-09-26
 

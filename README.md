@@ -116,6 +116,7 @@ O painel relê o `services.yml` sozinho, sem reiniciar.
 | Ver as sessões do Claude Code | Primeiro item da lista |
 | Ver todas as portas em uso | Seção "Portas", no fim da lista |
 | Resolver conflito de porta | "Copiar prompt" no aviso de conflito e cole no Claude Code do projeto |
+| Dar um apelido ao projeto (ex.: o nome antigo) | Lápis ao lado do nome. Grava ao sair do campo; fica em `data/apelidos.json` |
 | Trocar o tema | Botão ao lado de "ao vivo". Claro das 6h às 18h e escuro no resto do dia; a troca manual vale até a próxima virada |
 
 **Estados das sessões do Claude:** verde é trabalhando, amarelo é aguardando você e cinza é

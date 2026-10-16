@@ -20,6 +20,7 @@ import (
 	"servermanager/internal/config"
 	"servermanager/internal/control"
 	"servermanager/internal/dockerx"
+	"servermanager/internal/labels"
 	"servermanager/internal/state"
 	"servermanager/internal/version"
 )
@@ -29,8 +30,8 @@ import (
 const ActionHeader = "X-Server-Manager"
 
 // Handler monta todas as rotas.
-func Handler(st *state.Store, dc *dockerx.Client, web fs.FS) http.Handler {
-	a := &api{st: st, dc: dc}
+func Handler(st *state.Store, dc *dockerx.Client, lb *labels.Store, web fs.FS) http.Handler {
+	a := &api{st: st, dc: dc, labels: lb}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", a.health)
 	mux.HandleFunc("GET /api/snapshot", a.snapshot)
@@ -39,6 +40,7 @@ func Handler(st *state.Store, dc *dockerx.Client, web fs.FS) http.Handler {
 	})
 	mux.HandleFunc("GET /api/events", a.events)
 	mux.HandleFunc("GET /api/ports", a.ports)
+	mux.HandleFunc("PUT /api/projects/{key}/alias", a.setAlias)
 	mux.HandleFunc("POST /api/projects/{key}/{action}", a.projectAction)
 	mux.HandleFunc("GET /api/containers/{id}/logs", a.logs)
 	mux.HandleFunc("POST /api/analyze", a.analyze)
@@ -53,8 +55,9 @@ func Handler(st *state.Store, dc *dockerx.Client, web fs.FS) http.Handler {
 }
 
 type api struct {
-	st *state.Store
-	dc *dockerx.Client
+	st     *state.Store
+	dc     *dockerx.Client
+	labels *labels.Store
 }
 
 func (a *api) health(w http.ResponseWriter, r *http.Request) {
@@ -196,6 +199,32 @@ func (a *api) analyze(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, res)
+}
+
+func (a *api) setAlias(w http.ResponseWriter, r *http.Request) {
+	key := r.PathValue("key")
+	if _, ok := a.st.Project(key); !ok {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "projeto não encontrado"})
+		return
+	}
+	var body struct {
+		Alias string `json:"alias"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "corpo inválido"})
+		return
+	}
+	alias, err := a.labels.Set(key, body.Alias)
+	if errors.Is(err, labels.ErrTooLong) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	a.st.Poke()
+	writeJSON(w, http.StatusOK, map[string]string{"alias": alias})
 }
 
 func (a *api) logs(w http.ResponseWriter, r *http.Request) {

@@ -13,6 +13,7 @@ import (
 	"servermanager/internal/config"
 	"servermanager/internal/dockerx"
 	"servermanager/internal/hostinfo"
+	"servermanager/internal/labels"
 	"servermanager/internal/model"
 	"servermanager/internal/ports"
 	"servermanager/internal/procfs"
@@ -52,6 +53,7 @@ const SelfName = "server-manager"
 type Store struct {
 	dc      *dockerx.Client
 	cfg     *config.Loader
+	labels  *labels.Store
 	poke    chan struct{}
 	mu      sync.RWMutex
 	infos   []dockerx.Info
@@ -61,8 +63,8 @@ type Store struct {
 }
 
 // New cria o Store.
-func New(dc *dockerx.Client, cfg *config.Loader) *Store {
-	return &Store{dc: dc, cfg: cfg, poke: make(chan struct{}, 1), subs: map[chan model.Snapshot]struct{}{}}
+func New(dc *dockerx.Client, cfg *config.Loader, lb *labels.Store) *Store {
+	return &Store{dc: dc, cfg: cfg, labels: lb, poke: make(chan struct{}, 1), subs: map[chan model.Snapshot]struct{}{}}
 }
 
 // Poke pede uma releitura imediata dos containers.
@@ -161,6 +163,10 @@ func (s *Store) tick(ctx context.Context) {
 	mem := s.dc.Memory(ctx, running)
 
 	svcs, all := projects.Build(infos, mem, listeners, cfg)
+	aliases := s.labels.All()
+	for i := range svcs {
+		svcs[i].Alias = aliases[svcs[i].Key]
+	}
 	reserved := append([]uint16{SelfPort}, cfg.Ports.Reserved...)
 	pr := ports.Analyze(all, listeners, reserved)
 	snap.Projects, snap.Ports, snap.Conflicts, snap.Listeners = svcs, pr.Entries, pr.Conflicts, pr.Listeners

@@ -54,8 +54,9 @@ type Link struct {
 type Project struct {
 	Key      string      `json:"key"`
 	Name     string      `json:"name"`
-	Kind     string      `json:"kind"`  // configured | compose | standalone
-	State    string      `json:"state"` // on | off | partial | starting
+	Kind     string      `json:"kind"`            // configured | compose | standalone
+	Alias    string      `json:"alias,omitempty"` // apelido digitado no painel, mostrado entre parênteses
+	State    string      `json:"state"`           // on | off | partial | starting
 	Dir      string      `json:"dir,omitempty"`
 	Links    []Link      `json:"links"`
 	Apps     []Container `json:"apps"`

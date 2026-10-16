@@ -73,3 +73,15 @@ export async function fetchFolders(): Promise<FolderList> {
   if (!res.ok) throw new Error(`Falha (${res.status})`)
   return res.json()
 }
+
+// Grava o apelido do projeto. Vazio remove.
+export async function setAlias(key: string, alias: string): Promise<string> {
+  const res = await fetch(`/api/projects/${encodeURIComponent(key)}/alias`, {
+    method: 'PUT',
+    headers: { ...ACTION_HEADER, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ alias }),
+  })
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(body.error ?? `Falha (${res.status})`)
+  return body.alias ?? ''
+}

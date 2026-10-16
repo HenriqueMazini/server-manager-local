@@ -3,6 +3,7 @@ import { fetchLogs } from '../api'
 import type { Container, Port, Project } from '../types'
 import { bytes, displayURL, isWeb, shortPath } from '../format'
 import { copyText, cx, Dot, Icon, Spinner, Switch, useToast, type Tone } from './ui'
+import { AliasField } from './AliasField'
 
 export type Pending = { running: boolean; busy: boolean; restarting?: boolean }
 
@@ -142,7 +143,11 @@ export function ProjectRow({
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2">
             <span className={cx('truncate text-sm font-semibold tracking-tight', !on && 'text-muted')}>{p.name}</span>
+            {/* Com apelido: entre o nome e o estado. Sem apelido: o lápis vai depois do estado, para não
+                abrir um buraco invisível entre os dois. */}
+            {p.alias && <AliasField projectKey={p.key} alias={p.alias} className="shrink-0 text-sm" />}
             <span className={cx('shrink-0 text-[11px]', toneText[tone])}>{state}</span>
+            {!p.alias && <AliasField projectKey={p.key} alias={p.alias} className="shrink-0 text-sm" />}
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1.5 text-right">
@@ -181,9 +186,11 @@ export function ProjectDetail({ project: p, color, onClose, ...actions }: { proj
           <Dot tone={tone} />
         </span>
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-baseline gap-x-2.5">
+          <div className="group flex flex-wrap items-baseline gap-x-2.5">
             <h2 className="text-base font-semibold tracking-tight">{p.name}</h2>
+            {p.alias && <AliasField projectKey={p.key} alias={p.alias} className="text-base" />}
             <span className={cx('text-xs', toneText[tone])}>{state}</span>
+            {!p.alias && <AliasField projectKey={p.key} alias={p.alias} className="text-base" />}
           </div>
           <p className="mt-0.5 flex flex-wrap gap-x-2 text-xs text-faint">
             <span>

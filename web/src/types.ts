@@ -38,6 +38,7 @@ export type Project = {
   key: string
   name: string
   kind: 'configured' | 'compose' | 'standalone'
+  alias?: string
   state: 'on' | 'off' | 'partial' | 'starting'
   dir?: string
   links: Link[]

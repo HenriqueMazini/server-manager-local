@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"syscall"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"servermanager/internal/config"
 	"servermanager/internal/dockerx"
 	"servermanager/internal/httpapi"
+	"servermanager/internal/labels"
 	"servermanager/internal/state"
 	"servermanager/internal/version"
 	"servermanager/web"
@@ -36,6 +38,8 @@ func main() {
 	version.Set(versionFile)
 	addr := env("SM_ADDR", "127.0.0.1:9090")
 	cfgPath := env("SM_CONFIG", "services.yml")
+	// Pasta gravável do painel (apelidos). No container é /data, montada a partir de ./data.
+	dataDir := env("SM_DATA_DIR", "data")
 
 	if _, p, err := net.SplitHostPort(addr); err == nil {
 		if n, err := strconv.ParseUint(p, 10, 16); err == nil {
@@ -53,12 +57,13 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	st := state.New(dc, config.NewLoader(cfgPath))
+	lb := labels.New(filepath.Join(dataDir, "apelidos.json"))
+	st := state.New(dc, config.NewLoader(cfgPath), lb)
 	go st.Run(ctx)
 
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           httpapi.Handler(st, dc, web.FS()),
+		Handler:           httpapi.Handler(st, dc, lb, web.FS()),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	go func() {

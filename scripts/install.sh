@@ -30,6 +30,9 @@ HOST_GID=$(id -g)
 DOCKER_GID=$docker_gid
 ENV
 
+# Pasta gravável do painel. Criada aqui, com o seu usuário: se o Docker criasse, seria do root.
+mkdir -p data
+
 if [[ ! -d "$HOME/projetos" ]]; then
   echo "  aviso: ~/projetos não existe. O painel funciona, mas a lista do \"Criar server\" fica vazia."
 fi
