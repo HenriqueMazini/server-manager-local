@@ -11,6 +11,8 @@ Anote cada mudança em **Não lançado** no mesmo commit que a faz. O script
 
 ## [Não lançado]
 
+## [1.3.0] - 2026-10-17
+
 ### Adicionado
 - Botão de lixeira em cada sessão do Claude: encerra a sessão (se aberta) e apaga a conversa, o
   histórico de arquivos e o ambiente dela, depois de uma janela de confirmação.
@@ -157,7 +159,8 @@ Primeira versão estável: projetos, sessões do Claude, memória, portas e aler
 - Inventário e conflitos de porta, com prompt para o Claude Code.
 - Guia `docs/ADICIONAR-PROJETO.md`.
 
-[Não lançado]: https://github.com/HenriqueMazini/server-manager-local/compare/v1.2.0...HEAD
+[Não lançado]: https://github.com/HenriqueMazini/server-manager-local/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/HenriqueMazini/server-manager-local/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/HenriqueMazini/server-manager-local/compare/v1.0.0...v1.2.0
 [1.0.0]: https://github.com/HenriqueMazini/server-manager-local/compare/v0.7.0...v1.0.0
 [0.7.0]: https://github.com/HenriqueMazini/server-manager-local/compare/v0.6.0...v0.7.0
