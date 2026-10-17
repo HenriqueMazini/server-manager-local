@@ -11,6 +11,10 @@ Anote cada mudança em **Não lançado** no mesmo commit que a faz. O script
 
 ## [Não lançado]
 
+### Alterado
+- Sino de cada sessão do Claude antes do nome, alinhado em todas as linhas.
+- Legenda dos status das sessões dentro de um tooltip, no ícone "i" ao lado de "Sessões do Claude".
+
 ## [1.0.0] - 2026-10-17
 
 Primeira versão estável: projetos, sessões do Claude, memória, portas e alertas.

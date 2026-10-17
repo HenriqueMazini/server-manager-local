@@ -136,6 +136,56 @@ function since(iso?: string): string {
   return a && a !== 'agora' ? `aberta há ${a}` : ''
 }
 
+// Legenda dos status num tooltip: abre com o mouse ou com o foco do teclado.
+function StatusHelp() {
+  const items: [Tone, string, string][] = [
+    ['on', 'trabalhando', 'o Claude está executando'],
+    ['warn', 'aguardando você', 'o Claude Code pediu sua ação, como uma permissão'],
+    ['info', 'aguardando resposta', `saiu de trabalhando há até ${REPLY_MINUTES} min`],
+    ['danger', 'ociosa', `sem atualização há ${IDLE_DAYS} dias ou mais`],
+    ['off', 'parada', `entre ${RECENT_DAYS} e ${IDLE_DAYS} dias, ou sem data`],
+    ['warn', 'recente', `atualizada há até ${RECENT_DAYS} dias`],
+  ]
+  return (
+    <span className="group/help relative inline-flex font-normal">
+      <button
+        type="button"
+        aria-label="O que significa cada status"
+        aria-describedby="status-help"
+        className="grid size-5 place-items-center rounded-full text-faint transition-colors hover:text-fg focus-visible:text-fg focus-visible:outline-2 focus-visible:outline-on"
+      >
+        <Icon name="infoCircle" className="size-4" />
+      </button>
+      <span
+        id="status-help"
+        role="tooltip"
+        className={cx(
+          'invisible absolute left-0 top-7 z-30 w-80 rounded-xl border border-line bg-surface p-3 text-left opacity-0 shadow-2xl transition-opacity',
+          'group-hover/help:visible group-hover/help:opacity-100 group-focus-within/help:visible group-focus-within/help:opacity-100',
+        )}
+      >
+        <span className="mb-2 block text-[11px] font-medium uppercase tracking-[0.12em] text-faint">Status das sessões</span>
+        <span className="block space-y-1.5">
+          {items.map(([tone, label, rule]) => (
+            <span key={label} className="flex items-start gap-2 text-xs leading-snug">
+              <span className="mt-1">
+                <Dot tone={tone} />
+              </span>
+              <span>
+                <span className={cx('font-medium', toneText[tone])}>{label}</span>
+                <span className="text-muted">: {rule}</span>
+              </span>
+            </span>
+          ))}
+        </span>
+        <span className="mt-2.5 block border-t border-line pt-2 text-[11px] text-faint">
+          A lista segue esta ordem e, dentro de cada status, o nome da sessão.
+        </span>
+      </span>
+    </span>
+  )
+}
+
 export function ClaudeDetail({
   claude: c,
   color,
@@ -154,15 +204,11 @@ export function ClaudeDetail({
       <header className="flex items-start gap-3 border-b border-line px-5 py-4">
         <ClaudeMark className="mt-1 text-faint" />
         <div className="min-w-0 flex-1">
-          <h2 className="text-base font-semibold tracking-tight">Sessões do Claude</h2>
-          <p className="mt-0.5 text-xs text-faint">{summaryText(c)} · por grupo e, em cada grupo, por nome</p>
-          <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-faint">
-            <span className="inline-flex items-center gap-1.5"><Dot tone="on" /> trabalhando</span>
-            <span className="inline-flex items-center gap-1.5"><Dot tone="info" /> aguardando resposta: saiu de trabalhando há até {REPLY_MINUTES} min</span>
-            <span className="inline-flex items-center gap-1.5"><Dot tone="warn" /> recente: até {RECENT_DAYS} dias, ou aguardando você</span>
-            <span className="inline-flex items-center gap-1.5"><Dot tone="off" /> parada</span>
-            <span className="inline-flex items-center gap-1.5"><Dot tone="danger" /> ociosa: {IDLE_DAYS} dias ou mais</span>
-          </p>
+          <h2 className="flex items-center gap-1.5 text-base font-semibold tracking-tight">
+            Sessões do Claude
+            <StatusHelp />
+          </h2>
+          <p className="mt-0.5 text-xs text-faint">{summaryText(c)}</p>
         </div>
         <div className="text-right">
           <div className="tabular font-mono text-sm">{c.memUsed > 0 ? bytes(c.memUsed) : '—'}</div>
@@ -188,6 +234,21 @@ export function ClaudeDetail({
               <li key={s.pid} className="px-5 py-3 [&+&]:border-t [&+&]:border-line/70">
                 <div className="flex items-center gap-4">
                   <Dot tone={v.tone} pulse={s.status === 'busy'} />
+                  {muted && onToggleMute && (
+                    <button
+                      type="button"
+                      onClick={() => onToggleMute(s.pid)}
+                      aria-pressed={muted.has(s.pid)}
+                      aria-label={muted.has(s.pid) ? `Reativar alertas de ${s.name}` : `Silenciar alertas de ${s.name}`}
+                      title={muted.has(s.pid) ? 'Silenciada: sem alerta e som. Clique para reativar.' : 'Silenciar alerta e som desta sessão'}
+                      className={cx(
+                        '-mx-1.5 grid size-7 shrink-0 place-items-center rounded-md transition-colors hover:bg-raised',
+                        muted.has(s.pid) ? 'text-faint hover:text-fg' : 'text-info-ink hover:text-fg',
+                      )}
+                    >
+                      <Icon name={muted.has(s.pid) ? 'bellOff' : 'bell'} className="size-3.5" />
+                    </button>
+                  )}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline gap-2">
                       <span className="truncate text-sm font-medium">{s.name}</span>
@@ -198,21 +259,6 @@ export function ClaudeDetail({
                       {[s.cwd, since(s.startedAt), s.version && `v${s.version}`, `pid ${s.pid}`].filter(Boolean).join(' · ')}
                     </div>
                   </div>
-                  {muted && onToggleMute && (
-                    <button
-                      type="button"
-                      onClick={() => onToggleMute(s.pid)}
-                      aria-pressed={muted.has(s.pid)}
-                      aria-label={muted.has(s.pid) ? `Reativar alertas de ${s.name}` : `Silenciar alertas de ${s.name}`}
-                      title={muted.has(s.pid) ? 'Silenciada: sem alerta e som. Clique para reativar.' : 'Silenciar alerta e som desta sessão'}
-                      className={cx(
-                        'grid size-7 shrink-0 place-items-center rounded-md transition-colors hover:bg-raised',
-                        muted.has(s.pid) ? 'text-faint hover:text-fg' : 'text-info-ink hover:text-fg',
-                      )}
-                    >
-                      <Icon name={muted.has(s.pid) ? 'bellOff' : 'bell'} className="size-3.5" />
-                    </button>
-                  )}
                   <div className="text-right">
                     <div className="tabular font-mono text-xs text-muted">{bytes(s.memUsed)}</div>
                     <div className="text-[11px] text-faint">
