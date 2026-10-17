@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"servermanager/internal/analyze"
+	"servermanager/internal/claude"
 	"servermanager/internal/config"
 	"servermanager/internal/control"
 	"servermanager/internal/dockerx"
@@ -43,6 +44,8 @@ func Handler(st *state.Store, dc *dockerx.Client, lb *labels.Store, web fs.FS) h
 	mux.HandleFunc("GET /api/ports", a.ports)
 	mux.HandleFunc("PUT /api/projects/{key}/alias", a.setAlias)
 	mux.HandleFunc("POST /api/orphans/remove", a.removeOrphans)
+	mux.HandleFunc("POST /api/claude/sessions/{pid}/delete", a.deleteSession)
+	mux.HandleFunc("POST /api/claude/closed/{id}/delete", a.deleteClosed)
 	mux.HandleFunc("POST /api/projects/{key}/{action}", a.projectAction)
 	mux.HandleFunc("GET /api/containers/{id}/logs", a.logs)
 	mux.HandleFunc("POST /api/analyze", a.analyze)
@@ -201,6 +204,64 @@ func (a *api) analyze(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, res)
+}
+
+// deleteSession encerra e apaga uma sessão do Claude pelo ajudante da máquina. O ID da conversa
+// vem do snapshot do servidor, não do navegador, e o ajudante confere tudo de novo.
+func (a *api) deleteSession(w http.ResponseWriter, r *http.Request) {
+	pid, err := strconv.Atoi(r.PathValue("pid"))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "pid inválido"})
+		return
+	}
+	var sess *claude.Session
+	snap := a.st.Snapshot()
+	for i := range snap.Claude.Sessions {
+		if snap.Claude.Sessions[i].PID == pid {
+			sess = &snap.Claude.Sessions[i]
+		}
+	}
+	if sess == nil || sess.ID == "" {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "sessão não encontrada ou sem ID de conversa"})
+		return
+	}
+	res, err := claude.Delete(state.HelperSocket, sess.ID, pid)
+	if errors.Is(err, claude.ErrNoHelper) {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": err.Error()})
+		return
+	}
+	if err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+		return
+	}
+	a.st.Poke()
+	writeJSON(w, http.StatusOK, map[string]any{"name": sess.Name, "stopped": res.Stopped, "removed": len(res.Removed)})
+}
+
+// deleteClosed apaga uma conversa fechada. Só aceita IDs que estão na lista de fechadas do servidor.
+func (a *api) deleteClosed(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	var name string
+	for _, c := range a.st.Snapshot().Claude.Closed {
+		if c.ID == id {
+			name = c.Name
+		}
+	}
+	if name == "" {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "conversa fechada não encontrada"})
+		return
+	}
+	res, err := claude.Delete(state.HelperSocket, id, 0)
+	if errors.Is(err, claude.ErrNoHelper) {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": err.Error()})
+		return
+	}
+	if err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+		return
+	}
+	a.st.Poke()
+	writeJSON(w, http.StatusOK, map[string]any{"name": name, "stopped": false, "removed": len(res.Removed)})
 }
 
 // removeOrphans apaga as sobras de apps. A lista é recalculada aqui, a partir do Docker e do

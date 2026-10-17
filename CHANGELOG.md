@@ -11,6 +11,23 @@ Anote cada mudança em **Não lançado** no mesmo commit que a faz. O script
 
 ## [Não lançado]
 
+### Adicionado
+- Botão de lixeira em cada sessão do Claude: encerra a sessão (se aberta) e apaga a conversa, o
+  histórico de arquivos e o ambiente dela, depois de uma janela de confirmação.
+- `helper/ajudante.py`: serviço do usuário, fora do Docker, que faz só essa remoção, conferindo que o
+  processo é um `claude` da mesma conversa e que tudo apagado fica em `~/.claude`. O painel conversa
+  com ele por `data/ajudante.sock` e continua só lendo a home. `scripts/install.sh` instala o serviço.
+
+- Sessões do Claude fechadas no fim da lista, em cinza: conversas guardadas em `~/.claude/projects` sem
+  processo aberto, com nome, pasta, última atualização e tamanho. Cada uma copia o comando para retomar
+  (`claude --resume`) e pode ser apagada. Agrupadas por projeto (nome do projeto do painel ou da pasta),
+  grupos pela conversa mais recente e, dentro, da mais recente para a mais antiga; até 5 por grupo, com
+  opção de ver o resto. O painel lê
+  só o começo e o fim de cada conversa e guarda o resultado até o arquivo mudar.
+
+### Corrigido
+- O serviço de fundo do Claude Code (`claude daemon`) não aparece mais como sessão.
+
 ## [1.2.0] - 2026-10-17
 
 ### Alterado

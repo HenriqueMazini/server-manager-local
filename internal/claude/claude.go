@@ -21,6 +21,7 @@ import (
 // Session é uma sessão do Claude Code em execução.
 type Session struct {
 	PID       int       `json:"pid"`
+	ID        string    `json:"id,omitempty"` // ID da conversa (sessionId do Claude Code)
 	Name      string    `json:"name"`
 	Cwd       string    `json:"cwd,omitempty"`
 	Status    string    `json:"status"` // busy | waiting | idle | unknown
@@ -40,9 +41,11 @@ type Child struct {
 
 // Summary é o bloco das sessões no snapshot.
 type Summary struct {
-	Available bool      `json:"available"` // false quando o painel não enxerga os processos do computador
-	Sessions  []Session `json:"sessions"`
-	MemUsed   uint64    `json:"memUsed"`
+	Available bool            `json:"available"` // false quando o painel não enxerga os processos do computador
+	CanDelete bool            `json:"canDelete"` // o ajudante da máquina está rodando
+	Sessions  []Session       `json:"sessions"`
+	Closed    []ClosedSession `json:"closed"` // conversas guardadas sem processo aberto
+	MemUsed   uint64          `json:"memUsed"`
 }
 
 // Read monta o resumo a partir de /proc (procRoot). sessionsDir é ~/.claude/sessions.
@@ -52,7 +55,7 @@ func Read(procRoot, sessionsDir, home string) Summary {
 
 // FromProcs monta o resumo a partir de uma tabela de processos já lida.
 func FromProcs(procs map[int]procfs.Proc, sessionsDir, home string) Summary {
-	out := Summary{Sessions: []Session{}}
+	out := Summary{Sessions: []Session{}, Closed: []ClosedSession{}}
 	if len(procs) == 0 {
 		return out
 	}
@@ -68,11 +71,16 @@ func FromProcs(procs map[int]procfs.Proc, sessionsDir, home string) Summary {
 		if p.Comm != "claude" {
 			continue
 		}
+		// O serviço de fundo do Claude Code ("claude daemon ...") não é uma conversa.
+		if len(p.Argv) > 1 && p.Argv[1] == "daemon" {
+			continue
+		}
 		if parent, ok := procs[p.PPID]; ok && parent.Comm == "claude" {
 			continue
 		}
 		s := Session{PID: p.PID, Name: "claude " + strings.TrimSpace(strings.TrimPrefix(p.Args(), "claude")), Status: "unknown", Children: []Child{}}
 		if meta, ok := readMeta(sessionsDir, p); ok {
+			s.ID = meta.SessionID
 			if meta.Name != "" {
 				s.Name = meta.Name
 			}
@@ -136,6 +144,7 @@ type meta struct {
 	UpdatedAt int64  `json:"updatedAt"`
 	StatusAt  int64  `json:"statusUpdatedAt"`
 	ProcStart string `json:"procStart"`
+	SessionID string `json:"sessionId"`
 }
 
 // readMeta só aceita o arquivo se o início do processo bate: PID reaproveitado não herda a sessão antiga.

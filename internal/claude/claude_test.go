@@ -3,6 +3,7 @@ package claude
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -55,6 +56,7 @@ func TestRead(t *testing.T) {
 	fakeProc(t, procDir, 203, 202, "node", "791", 100000, "node\x00jest")
 	fakeProc(t, procDir, 204, 200, "claude", "792", 200000, "claude\x00--subagent")
 	fakeProc(t, procDir, 300, 100, "claude", "900", 350000, "claude")
+	fakeProc(t, procDir, 400, 1, "claude", "950", 90000, "/home/u/.local/bin/claude\x00daemon\x00run\x00--json-path\x00x")
 
 	must(t, os.WriteFile(filepath.Join(sessDir, "200.json"), []byte(`{"pid":200,"cwd":"/home/u/projetos/loja","name":"loja","status":"busy","version":"2.1.281","startedAt":1790000000000,"updatedAt":1790000500000,"procStart":"777"}`), 0o644))
 	// PID 300 reaproveitado: arquivo de outra sessão, com início diferente.
@@ -111,5 +113,45 @@ func TestSortSessions(t *testing.T) {
 		if got[i] != want[i] {
 			t.Fatalf("ordem = %v, quero %v", got, want)
 		}
+	}
+}
+
+func TestClosed(t *testing.T) {
+	root := t.TempDir()
+	proj := filepath.Join(root, "projects", "-home-u-loja")
+	must(t, os.MkdirAll(filepath.Join(proj, "11111111-1111-1111-1111-111111111111", "subagents"), 0o755))
+	write := func(name, content string) string {
+		p := filepath.Join(proj, name)
+		must(t, os.WriteFile(p, []byte(content), 0o644))
+		return p
+	}
+	// Fechada, com pasta no começo e nome no fim (o último vale).
+	big := `{"type":"mode"}` + "\n" + `{"type":"user","cwd":"/home/u/projetos/loja"}` + "\n" + strings.Repeat(`{"type":"assistant","x":"`+strings.Repeat("a", 1000)+`"}`+"\n", 400) +
+		`{"type":"custom-title","customTitle":"nome-antigo"}` + "\n" + `{"type":"agent-name","agentName":"loja-api"}` + "\n"
+	a := write("22222222-2222-2222-2222-222222222222.jsonl", big)
+	// Aberta agora: não entra.
+	write("33333333-3333-3333-3333-333333333333.jsonl", `{"cwd":"/x"}`+"\n")
+	// Sem nome nem pasta: usa o começo do ID e a pasta do diretório.
+	b := write("44444444-4444-4444-4444-444444444444.jsonl", `{"type":"mode"}`+"\n")
+	// Arquivo que não é conversa.
+	write("anotacoes.jsonl", "{}\n")
+	old := time.Now().Add(-time.Hour)
+	must(t, os.Chtimes(b, old, old))
+
+	got := Closed(filepath.Join(root, "projects"), "/home/u", map[string]bool{"33333333-3333-3333-3333-333333333333": true})
+	if len(got) != 2 {
+		t.Fatalf("esperava 2 fechadas: %+v", got)
+	}
+	if got[0].ID != "22222222-2222-2222-2222-222222222222" || got[0].Name != "loja-api" || got[0].Cwd != "~/projetos/loja" {
+		t.Errorf("primeira (mais recente) = %+v", got[0])
+	}
+	if got[1].Name != "44444444" || got[1].Cwd != "~/loja" {
+		t.Errorf("sem metadados = %+v", got[1])
+	}
+	// Cache: arquivo alterado é relido.
+	must(t, os.WriteFile(a, []byte(`{"cwd":"/home/u/outra"}`+"\n"+`{"agentName":"renomeada"}`+"\n"), 0o644))
+	got = Closed(filepath.Join(root, "projects"), "/home/u", nil)
+	if got[0].Name != "renomeada" || got[0].Cwd != "~/outra" {
+		t.Errorf("cache não releu o arquivo alterado: %+v", got[0])
 	}
 }

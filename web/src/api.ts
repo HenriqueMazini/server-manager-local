@@ -93,3 +93,19 @@ export async function removeOrphans(): Promise<number> {
   if (!res.ok) throw new Error(body.error ?? `Falha (${res.status})`)
   return (body.results ?? []).length
 }
+
+// Encerra (se aberta) e apaga uma sessão do Claude, pelo ajudante da máquina.
+export async function deleteClaudeSession(pid: number): Promise<{ name: string; stopped: boolean; removed: number }> {
+  const res = await fetch(`/api/claude/sessions/${pid}/delete`, { method: 'POST', headers: ACTION_HEADER })
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(body.error ?? `Falha (${res.status})`)
+  return body
+}
+
+// Apaga uma conversa já fechada (sem processo), pelo ajudante da máquina.
+export async function deleteClosedSession(id: string): Promise<{ name: string; stopped: boolean; removed: number }> {
+  const res = await fetch(`/api/claude/closed/${encodeURIComponent(id)}/delete`, { method: 'POST', headers: ACTION_HEADER })
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(body.error ?? `Falha (${res.status})`)
+  return body
+}

@@ -6,3 +6,4 @@ web/dist/*
 /.env
 /services.yml
 /data/
+__pycache__/

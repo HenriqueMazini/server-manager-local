@@ -37,6 +37,30 @@ if [[ ! -d "$HOME/projetos" ]]; then
   echo "  aviso: ~/projetos não existe. O painel funciona, mas a lista do \"Criar server\" fica vazia."
 fi
 
+# Ajudante da máquina: roda fora do Docker, com o seu usuário, e só sabe encerrar e apagar
+# sessões do Claude Code pedidas pelo painel. Conversa com o painel por data/ajudante.sock.
+if command -v systemctl >/dev/null && systemctl --user show-environment >/dev/null 2>&1; then
+  units="$HOME/.config/systemd/user"
+  mkdir -p "$units"
+  cat > "$units/server-manager-ajudante.service" <<UNIT
+[Unit]
+Description=Ajudante do Server Manager (apagar sessões do Claude Code)
+
+[Service]
+ExecStart=/usr/bin/python3 $PWD/helper/ajudante.py $PWD/data/ajudante.sock
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
+UNIT
+  systemctl --user daemon-reload
+  systemctl --user enable server-manager-ajudante.service >/dev/null
+  systemctl --user restart server-manager-ajudante.service
+  echo "  ajudante: ativo (apagar sessões do Claude pelo painel)"
+else
+  echo "  aviso: sem systemd do usuário; o botão de apagar sessões do Claude fica indisponível."
+fi
+
 say "Construindo e subindo o painel"
 docker compose up -d --build
 

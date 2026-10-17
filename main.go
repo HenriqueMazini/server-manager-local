@@ -58,6 +58,7 @@ func main() {
 	defer stop()
 
 	lb := labels.New(filepath.Join(dataDir, "apelidos.json"))
+	state.HelperSocket = filepath.Join(dataDir, "ajudante.sock")
 	st := state.New(dc, config.NewLoader(cfgPath), lb)
 	go st.Run(ctx)
 

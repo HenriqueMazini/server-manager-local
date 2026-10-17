@@ -104,6 +104,7 @@ export type ClaudeChild = { name: string; memUsed: number }
 
 export type ClaudeSession = {
   pid: number
+  id?: string
   name: string
   cwd?: string
   status: 'busy' | 'waiting' | 'idle' | 'unknown' | string
@@ -115,7 +116,9 @@ export type ClaudeSession = {
   children: ClaudeChild[]
 }
 
-export type ClaudeSummary = { available: boolean; sessions: ClaudeSession[]; memUsed: number }
+export type ClosedSession = { id: string; name: string; cwd?: string; updatedAt: string; size: number }
+
+export type ClaudeSummary = { available: boolean; canDelete?: boolean; sessions: ClaudeSession[]; closed?: ClosedSession[]; memUsed: number }
 
 export type HostApp = { name: string; memUsed: number; procs: number }
 

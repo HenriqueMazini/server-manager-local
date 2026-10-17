@@ -127,6 +127,7 @@ export default function App() {
       onClose={() => select(null)}
       muted={alerts.enabled ? alerts.muted : undefined}
       onToggleMute={alerts.toggleMute}
+      projects={projects}
     />
   ) : current && (
     <ProjectDetail

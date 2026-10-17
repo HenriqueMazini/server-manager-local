@@ -43,6 +43,10 @@ func procRoot() string {
 	return "/proc"
 }
 
+// HelperSocket é o socket do ajudante da máquina (helper/ajudante.py), dentro da pasta de dados.
+// main define a partir de SM_DATA_DIR.
+var HelperSocket = filepath.Join("data", "ajudante.sock")
+
 // TopAppsCount é quantos aplicativos o snapshot traz; o painel mostra só os acima de 1 GB.
 const TopAppsCount = 12
 
@@ -174,6 +178,14 @@ func (s *Store) tick(ctx context.Context) {
 	// Uma leitura do /proc por atualização alimenta as sessões do Claude e os aplicativos da máquina.
 	procs := procfs.Scan(ProcRoot)
 	snap.Claude = claude.FromProcs(procs, filepath.Join(config.HostHome, ".claude", "sessions"), config.HostHome)
+	snap.Claude.CanDelete = claude.HelperAvailable(HelperSocket)
+	if snap.Claude.Available {
+		open := map[string]bool{}
+		for _, s := range snap.Claude.Sessions {
+			open[s.ID] = true
+		}
+		snap.Claude.Closed = claude.Closed(filepath.Join(config.HostHome, ".claude", "projects"), config.HostHome, open)
+	}
 	snap.Apps = procfs.TopApps(procs, TopAppsCount)
 	if snap.Projects == nil {
 		snap.Projects = []model.Project{}

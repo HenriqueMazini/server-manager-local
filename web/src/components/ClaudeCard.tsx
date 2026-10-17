@@ -1,7 +1,10 @@
-import type { ClaudeSession, ClaudeSummary } from '../types'
-import { bytes } from '../format'
-import { cx, Dot, Icon, type Tone } from './ui'
+import type { ClaudeSession, ClaudeSummary, ClosedSession } from '../types'
+import { deleteClaudeSession, deleteClosedSession } from '../api'
+import { bytes, shortPath } from '../format'
+import { copyText, cx, Dot, Icon, useToast, type Tone } from './ui'
 import { TINT_CLASSES, TINT_SELECTED_CLASSES, tintStyle } from '../colors'
+import { useState } from 'react'
+import { ConfirmDeleteSession, type DeleteTarget } from './ConfirmDelete'
 
 const DAY = 24 * 60 * 60 * 1000
 // Sessões paradas são classificadas pelo tempo desde a última atualização.
@@ -51,6 +54,8 @@ function summaryText(c: ClaudeSummary): string {
   if (waiting) parts.push(`${waiting} aguardando você`)
   if (reply) parts.push(`${reply} aguardando resposta`)
   if (idle) parts.push(`${idle} ${idle === 1 ? 'ociosa' : 'ociosas'}`)
+  const closed = c.closed?.length ?? 0
+  if (closed) parts.push(`${closed} ${closed === 1 ? 'fechada' : 'fechadas'}`)
   return parts.join(' · ')
 }
 
@@ -192,14 +197,21 @@ export function ClaudeDetail({
   onClose,
   muted,
   onToggleMute,
+  projects = [],
 }: {
   claude: ClaudeSummary
   color: string
   onClose: () => void
   muted?: Set<number> // ausente quando os alertas estão desligados nas configurações
   onToggleMute?: (pid: number) => void
+  projects?: { name: string; dir?: string }[]
 }) {
+  const [deleting, setDeleting] = useState<DeleteTarget | null>(null)
+  const askDelete = (s: ClaudeSession) =>
+    setDeleting({ name: s.name, cwd: s.cwd, open: true, working: s.status === 'busy', run: () => deleteClaudeSession(s.pid) })
   return (
+    <>
+    {deleting && <ConfirmDeleteSession target={deleting} onClose={() => setDeleting(null)} />}
     <article className="overflow-hidden rounded-2xl border border-line bg-surface">
       <header className="flex items-start gap-3 border-b border-line px-5 py-4">
         <ClaudeMark className="mt-1 text-faint" />
@@ -265,6 +277,17 @@ export function ClaudeDetail({
                       {s.procs} {s.procs === 1 ? 'processo' : 'processos'}
                     </div>
                   </div>
+                  {c.canDelete && s.id && (
+                    <button
+                      type="button"
+                      onClick={() => askDelete(s)}
+                      aria-label={`Apagar a sessão ${s.name}`}
+                      title="Encerrar e apagar esta sessão"
+                      className="grid size-7 shrink-0 place-items-center rounded-md text-faint transition-colors hover:bg-danger/10 hover:text-danger"
+                    >
+                      <Icon name="trash" className="size-3.5" />
+                    </button>
+                  )}
                 </div>
                 {extra.length > 0 && (
                   <ul className="mt-1.5 space-y-0.5 pl-6 font-mono text-[11px] text-faint">
@@ -282,6 +305,139 @@ export function ClaudeDetail({
           })}
         </ul>
       )}
+      <ClosedList
+        closed={c.closed ?? []}
+        projects={projects}
+        canDelete={!!c.canDelete}
+        onDelete={(x) => setDeleting({ name: x.name, cwd: x.cwd, open: false, working: false, run: () => deleteClosedSession(x.id) })}
+      />
     </article>
+    </>
+  )
+}
+
+const PER_GROUP = 5
+
+function sizeText(b: number): string {
+  if (b >= 1024 ** 2) return `${(b / 1024 ** 2).toFixed(1).replace('.', ',')} MB`
+  return `${Math.max(1, Math.round(b / 1024))} KB`
+}
+
+type ClosedGroup = { key: string; label: string; path?: string; items: ClosedSession[] }
+
+// Agrupa por projeto: a pasta da conversa dentro da pasta de um projeto do painel usa o nome dele;
+// fora disso, o nome da pasta. Grupos pela conversa mais recente; dentro, da mais recente para a mais antiga.
+function groupClosed(closed: ClosedSession[], projects: { name: string; dir?: string }[]): ClosedGroup[] {
+  const dirs = projects
+    .filter((p) => p.dir)
+    .map((p) => ({ name: p.name, dir: shortPath(p.dir).replace(/\/$/, '') }))
+    .sort((a, b) => b.dir.length - a.dir.length) // a pasta mais específica ganha
+  const groups = new Map<string, ClosedGroup>()
+  for (const c of closed) {
+    const cwd = (c.cwd ?? '').replace(/\/$/, '')
+    const proj = dirs.find((d) => cwd === d.dir || cwd.startsWith(d.dir + '/'))
+    const key = proj ? `p:${proj.dir}` : `d:${cwd}`
+    const label = proj ? proj.name : cwd.split('/').filter(Boolean).pop() || 'sem pasta'
+    const g = groups.get(key) ?? { key, label, path: proj ? proj.dir : cwd, items: [] }
+    g.items.push(c)
+    groups.set(key, g)
+  }
+  const byDate = (a: ClosedSession, b: ClosedSession) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt)
+  const out = [...groups.values()]
+  out.forEach((g) => g.items.sort(byDate))
+  return out.sort((a, b) => byDate(a.items[0], b.items[0]))
+}
+
+// Conversas guardadas sem processo aberto, no fim da lista e em cinza, agrupadas por projeto.
+function ClosedList({
+  closed,
+  projects,
+  canDelete,
+  onDelete,
+}: {
+  closed: ClosedSession[]
+  projects: { name: string; dir?: string }[]
+  canDelete: boolean
+  onDelete: (c: ClosedSession) => void
+}) {
+  const [open, setOpen] = useState<Record<string, boolean>>({})
+  const toast = useToast()
+  if (!closed.length) return null
+  const groups = groupClosed(closed, projects)
+  const resume = async (c: ClosedSession) => {
+    const dir = c.cwd ? (c.cwd.startsWith('~/') ? `"$HOME/${c.cwd.slice(2)}"` : `"${c.cwd}"`) : ''
+    const cmd = dir ? `cd ${dir} && claude --resume ${c.id}` : `claude --resume ${c.id}`
+    if (await copyText(cmd)) toast('Comando copiado. Cole num terminal para retomar a conversa.')
+  }
+  return (
+    <section className="border-t border-line">
+      <h3 className="px-5 pb-1 pt-3 text-[11px] font-medium uppercase tracking-[0.12em] text-faint">
+        Fechadas <span className="normal-case tracking-normal">· {closed.length} em {groups.length} {groups.length === 1 ? 'projeto' : 'projetos'}</span>
+      </h3>
+      {groups.map((g) => {
+        const all = open[g.key]
+        const shown = all ? g.items : g.items.slice(0, PER_GROUP)
+        return (
+          <div key={g.key} className="pb-1">
+            <div className="flex items-baseline gap-2 px-5 pb-1 pt-2.5">
+              <span className="text-xs font-semibold text-muted">{g.label}</span>
+              <span className="text-[11px] text-faint">{g.items.length}</span>
+              {g.path && g.path !== g.label && <span className="truncate font-mono text-[11px] text-faint">{g.path}</span>}
+            </div>
+            <ul className="mx-3 overflow-hidden rounded-lg border border-line/70">
+              {shown.map((c) => (
+                <li key={c.id} className="flex items-center gap-3 px-3 py-2 [&+&]:border-t [&+&]:border-line/70">
+                  <Dot tone="off" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline gap-2">
+                      <span className="truncate text-sm font-medium text-muted">{c.name}</span>
+                      <span className="shrink-0 text-[11px] text-faint">{updated(c.updatedAt)}</span>
+                    </div>
+                    {c.cwd && c.cwd.replace(/\/$/, '') !== g.path && (
+                      <div className="truncate font-mono text-[11px] text-faint">{c.cwd}</div>
+                    )}
+                  </div>
+                  <span className="tabular shrink-0 font-mono text-[11px] text-faint" title="Tamanho da conversa guardada">
+                    {sizeText(c.size)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => resume(c)}
+                    aria-label={`Copiar comando para retomar ${c.name}`}
+                    title="Copiar o comando para retomar esta conversa"
+                    className="grid size-7 shrink-0 place-items-center rounded-md text-faint transition-colors hover:bg-raised hover:text-fg"
+                  >
+                    <Icon name="terminal" className="size-3.5" />
+                  </button>
+                  {canDelete && (
+                    <button
+                      type="button"
+                      onClick={() => onDelete(c)}
+                      aria-label={`Apagar a conversa ${c.name}`}
+                      title="Apagar esta conversa"
+                      className="grid size-7 shrink-0 place-items-center rounded-md text-faint transition-colors hover:bg-danger/10 hover:text-danger"
+                    >
+                      <Icon name="trash" className="size-3.5" />
+                    </button>
+                  )}
+                </li>
+              ))}
+              {g.items.length > PER_GROUP && (
+                <li className="border-t border-line/70">
+                  <button
+                    type="button"
+                    onClick={() => setOpen((o) => ({ ...o, [g.key]: !all }))}
+                    className="w-full px-3 py-2 text-left text-xs text-muted hover:bg-raised hover:text-fg"
+                  >
+                    {all ? 'Mostrar menos' : `Mostrar mais ${g.items.length - PER_GROUP}`}
+                  </button>
+                </li>
+              )}
+            </ul>
+          </div>
+        )
+      })}
+      <div className="h-2" />
+    </section>
   )
 }
