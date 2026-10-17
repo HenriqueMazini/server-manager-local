@@ -11,6 +11,11 @@ Anote cada mudança em **Não lançado** no mesmo commit que a faz. O script
 
 ## [Não lançado]
 
+### Documentação
+- README atualizado: alertas com som e silêncio por sessão, sessões fechadas e como retomar, apagar
+  sessões pelo ajudante, tabela dos estados das sessões, pasta `data/`, segurança do ajudante,
+  desinstalação do serviço, novos problemas comuns e todas as rotas da API.
+
 ## [1.3.0] - 2026-10-17
 
 ### Adicionado
