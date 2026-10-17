@@ -22,7 +22,12 @@ desenvolvimento como `npm run dev`, e liga ou desliga o conjunto de uma vez.
 - **Mostra quem mais usa a memória da máquina.** Ao lado da memória dos ambientes, um cartão
   mostra o uso total do computador e os aplicativos acima de 1 GB, como navegador e editor.
 - **Acompanha as sessões do Claude Code.** O primeiro item da lista mostra cada sessão aberta, com
-  pasta, estado e memória, incluindo os servidores MCP e os comandos que ela está rodando.
+  pasta, estado e memória, incluindo os servidores MCP e os comandos que ela está rodando. As
+  sessões fechadas aparecem no fim, agrupadas por projeto, com o comando para retomar a conversa.
+- **Avisa quando o Claude termina.** Um sino no topo, com som, avisa quando uma sessão sai de
+  "trabalhando" e fica esperando a sua resposta. Dá para silenciar uma sessão específica.
+- **Apaga sessões do Claude.** Uma lixeira encerra a sessão e apaga a conversa, depois de uma
+  confirmação. Funciona também para conversas já fechadas.
 - **Analisa projetos novos.** O botão "Criar server" lista as pastas de `~/projetos`, analisa a
   escolhida e aponta o que falta, com um prompt pronto para o Claude Code do projeto resolver.
 - **Gerencia portas.** Lista todas as portas em uso e, quando dois projetos disputam a mesma,
@@ -42,6 +47,8 @@ desenvolvimento como `npm run dev`, e liga ou desliga o conjunto de uma vez.
 
 - **Seus projetos em `~/projetos`.** É a pasta padrão, uma subpasta por projeto. Se ela não
   existir, o painel funciona do mesmo jeito, só não lista pastas no "Criar server".
+- **Python 3 e systemd do usuário**, para o ajudante que apaga sessões do Claude. Já vêm no
+  Ubuntu e na maioria das distribuições. Sem eles, o painel funciona e só a lixeira não aparece.
 
 Node e Go não são necessários para usar o painel: tudo é compilado dentro do Docker.
 
@@ -53,8 +60,9 @@ cd ~/projetos/server-manager-local
 scripts/install.sh
 ```
 
-O script confere os requisitos, grava no `.env` o seu usuário e o grupo do Docker, constrói a
-imagem e sobe o painel. Ao terminar, abra **http://localhost:9090**.
+O script confere os requisitos, grava no `.env` o seu usuário e o grupo do Docker, cria a pasta
+`data/`, instala o ajudante (veja [Segurança](#segurança)), constrói a imagem e sobe o painel. Ao
+terminar, abra **http://localhost:9090**.
 
 O painel sobe sozinho quando o computador liga (`restart: unless-stopped`) e usa cerca de 10 MB
 de memória.
@@ -113,16 +121,27 @@ O painel relê o `services.yml` sozinho, sem reiniciar.
 | Ver apps, containers, portas e logs | Clique no nome do projeto: os detalhes abrem à direita |
 | Abrir o sistema no navegador | Links abaixo do nome do projeto |
 | Copiar a URL de um banco ou cache | Clique no endereço do container nos detalhes |
-| Ver as sessões do Claude Code | Primeiro item da lista |
-| Apagar uma sessão do Claude que terminou | Lixeira na sessão, nos detalhes das sessões. Confirma numa janela; encerra e apaga a conversa |
-| Saber quando o Claude terminou | Sino no topo, com som. Ligue ou desligue na engrenagem (configurações) |
+| Ver as sessões do Claude Code | Primeiro item da lista. Os detalhes abrem à direita |
+| Saber quando o Claude terminou | Sino no topo, com som e o número no título da aba. Ligue ou desligue na engrenagem (configurações) |
+| Silenciar uma sessão que está em conversa | Sino pequeno antes do nome da sessão |
+| Retomar uma conversa fechada | Botão de terminal na conversa, em "Fechadas": copia o `claude --resume` |
+| Apagar uma sessão do Claude | Lixeira na sessão, aberta ou fechada. Confirma numa janela; encerra e apaga a conversa |
 | Ver todas as portas em uso | Seção "Portas", no fim da lista |
 | Resolver conflito de porta | "Copiar prompt" no aviso de conflito e cole no Claude Code do projeto |
 | Dar um apelido ao projeto (ex.: o nome antigo) | Lápis ao lado do nome. Grava ao sair do campo; fica em `data/apelidos.json` |
 | Trocar o tema | Botão ao lado de "ao vivo". Claro das 6h às 18h e escuro no resto do dia; a troca manual vale até a próxima virada |
 
-**Estados das sessões do Claude:** verde é trabalhando, amarelo é aguardando você e cinza é
-ociosa. O painel só lê as sessões, não abre nem fecha nenhuma.
+**Estados das sessões do Claude**, na ordem da lista (o ícone "i" ao lado do título explica cada um):
+
+| Estado | Cor | Quando |
+|---|---|---|
+| trabalhando | verde | o Claude está executando |
+| aguardando você | amarelo | o Claude Code pediu sua ação, como uma permissão |
+| aguardando resposta | azul | saiu de trabalhando há até 30 minutos: a vez é sua |
+| ociosa | vermelho | sem atualização há 7 dias ou mais |
+| parada | cinza | entre 3 e 7 dias, ou sem data |
+| recente | amarelo | atualizada há até 3 dias |
+| fechada | cinza, no fim | conversa guardada sem sessão aberta |
 
 **Se um app não subir**, abra os logs dele nos detalhes do projeto. Os erros mais comuns:
 
@@ -182,6 +201,12 @@ Ficam no `docker-compose.yml` e no `.env`.
   ligar e desligar containers. Não exponha a porta 9090 na rede.
 - A sua home e o `/proc` são montados **somente para leitura**: o painel lê projetos e sessões,
   mas não altera arquivos. As análises do "Criar server" também só leem.
+- A única pasta gravável do painel é `data/`, com os apelidos dos projetos.
+- **Apagar sessões do Claude passa por um ajudante fora do Docker** (`helper/ajudante.py`), um
+  serviço do seu usuário instalado pelo `scripts/install.sh`. Ele só sabe fazer isso e confere
+  antes de agir: o processo é mesmo um `claude` daquela conversa e tudo o que apaga fica dentro de
+  `~/.claude`. O painel fala com ele por `data/ajudante.sock`, acessível só pelo seu usuário. Assim
+  o container nunca tem escrita na `~/.claude`, onde ficam as credenciais do Claude Code.
 - Os prompts gerados nunca incluem valores de senhas ou chaves, só os nomes das variáveis.
 
 ## Atualizar
@@ -200,10 +225,13 @@ Uma aba aberta numa versão antiga avisa no rodapé que o painel foi atualizado.
 cd ~/projetos/server-manager-local
 docker compose down --rmi all
 docker rm -f $(docker ps -aq --filter label=server-manager.project) 2>/dev/null
+systemctl --user disable --now server-manager-ajudante.service
+rm ~/.config/systemd/user/server-manager-ajudante.service
 ```
 
-O segundo comando remove os containers de apps que o painel criou (`sm-<projeto>-<app>`). Seus
-projetos, bancos e volumes não são tocados. Depois, apague a pasta.
+O segundo comando remove os containers de apps que o painel criou (`sm-<projeto>-<app>`). Os dois
+últimos removem o ajudante. Seus projetos, bancos, volumes e conversas do Claude não são tocados.
+Depois, apague a pasta.
 
 ## Solução de problemas
 
@@ -213,6 +241,8 @@ projetos, bancos e volumes não são tocados. Depois, apague a pasta.
 | Painel mostra "Docker indisponível" | O GID do Docker mudou. Rode `scripts/install.sh` de novo. |
 | "Criar server" sem pastas | Confira se `~/projetos` existe e tem projetos. |
 | "Sessões do Claude" indisponível | Suba pelo `docker compose` deste repositório, que monta o `/proc`. |
+| Lixeira das sessões não aparece | O ajudante não está rodando: `systemctl --user status server-manager-ajudante`. Rode `scripts/install.sh` de novo. |
+| Sem som nos alertas | O navegador só toca som depois de um clique na página. Teste em configurações (engrenagem) → "Testar som". |
 | Algo diferente | `docker compose logs -f server-manager` |
 
 ## Desenvolver
@@ -222,6 +252,7 @@ Stack: backend em **Go** com o SDK oficial do Docker, painel em **React 19**, **
 
 ```bash
 go test ./...                                           # testes do backend
+python3 -m unittest helper/test_ajudante.py             # testes do ajudante
 SM_ADDR=127.0.0.1:9091 SM_CONFIG=services.yml go run .  # backend fora do Docker
 cd web && npm install && SM_BACKEND=http://localhost:9091 npm run dev   # painel com hot reload
 cd web && npm run typecheck && npm run build            # build embutido no binário Go
@@ -234,17 +265,31 @@ cd web && npm run typecheck && npm run build            # build embutido no bin�
 | `internal/projects` | projetos, apps, `services.yml` e URLs por tipo de imagem |
 | `internal/control` | ordem de ligar, desligar e reiniciar um projeto |
 | `internal/analyze` | análise do "Criar server" e os prompts de cada pendência |
-| `internal/claude` | sessões do Claude Code e a memória de cada uma |
+| `internal/claude` | sessões do Claude Code (abertas e fechadas), memória e conversa com o ajudante |
+| `internal/labels` | apelidos dos projetos, em `data/apelidos.json` |
 | `internal/procfs` | leitura dos processos da máquina e agrupamento por aplicativo |
 | `internal/ports` | conflitos de porta e porta livre sugerida |
 | `internal/hostinfo` | memória e portas em uso da máquina |
 | `internal/state` | estado em memória, atualizado por eventos do Docker e a cada 2 s |
 | `internal/httpapi` | API JSON, stream SSE e o painel embutido |
-| `web/` | o painel |
+| `helper/` | ajudante fora do Docker que encerra e apaga sessões do Claude |
+| `scripts/` | `install.sh` (instalar e atualizar) e `release.sh` (lançar versão) |
+| `web/` | o painel (alertas e som em `web/src/alerts.ts`) |
 
-API: `GET /api/snapshot`, `GET /api/events` (SSE), `GET /api/ports`, `GET /api/folders`,
-`GET /api/version`, `POST /api/projects/{chave}/start|stop|restart`, `POST /api/analyze`,
-`GET /api/containers/{id}/logs` e `GET /healthz`. Ações exigem o header `X-Server-Manager: 1`.
+API:
+
+| Rota | Para quê |
+|---|---|
+| `GET /api/snapshot`, `GET /api/events` (SSE) | estado completo, e ao vivo |
+| `GET /api/ports`, `GET /api/folders`, `GET /api/version`, `GET /healthz` | portas, pastas de projetos, versão, saúde |
+| `POST /api/projects/{chave}/start\|stop\|restart` | ligar, desligar, reiniciar projeto |
+| `PUT /api/projects/{chave}/alias` | apelido do projeto |
+| `POST /api/analyze` | análise do "Criar server" |
+| `POST /api/orphans/remove` | remover containers antigos sem projeto |
+| `POST /api/claude/sessions/{pid}/delete`, `POST /api/claude/closed/{id}/delete` | apagar sessão aberta ou fechada |
+| `GET /api/containers/{id}/logs` | logs de um container |
+
+Ações (`POST` e `PUT`) exigem o header `X-Server-Manager: 1`.
 
 ## Versões
 
@@ -254,9 +299,10 @@ A versão fica no arquivo `VERSION` e aparece no rodapé do painel. O histórico
 Para lançar uma versão, anote as mudanças em **Não lançado** no changelog e rode:
 
 ```bash
-scripts/release.sh patch   # correção: 0.5.0 -> 0.5.1
-scripts/release.sh minor   # novidade: 0.5.0 -> 0.6.0
-scripts/release.sh major   # mudança incompatível: 0.5.0 -> 1.0.0
+scripts/release.sh patch   # correção: 1.3.0 -> 1.3.1
+scripts/release.sh minor   # novidade: 1.3.0 -> 1.4.0
+scripts/release.sh major   # mudança incompatível: 1.3.0 -> 2.0.0
+scripts/release.sh 1.5.0   # número exato
 git push origin main --follow-tags
 ```
 
