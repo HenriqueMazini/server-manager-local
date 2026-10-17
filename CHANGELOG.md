@@ -11,6 +11,21 @@ Anote cada mudança em **Não lançado** no mesmo commit que a faz. O script
 
 ## [Não lançado]
 
+Primeira versão estável: projetos, sessões do Claude, memória, portas e alertas.
+
+### Adicionado
+- Status "aguardando resposta" (azul) nas sessões do Claude: sessões que saíram de trabalhando há até
+  30 minutos, ou seja, o Claude terminou e a vez é sua. Fica logo depois de "aguardando você" na ordem
+  e entra no resumo e na legenda.
+- Sino de alertas no topo: quando uma sessão do Claude entra em "aguardando resposta", o sino ganha
+  contador e balança, o título da aba mostra o número e toca um som curto gerado no navegador. Um
+  alerta por sessão, sem duplicar; cada um pode ser fechado (ou todos de uma vez) e um alerta fechado
+  não volta ao recarregar. O alerta some sozinho quando a sessão volta a trabalhar ou é encerrada.
+- Configurações (engrenagem no topo): exibir alertas e tocar som, com botão para testar o som.
+- Sino pequeno em cada sessão do Claude para silenciar só aquela sessão: sem alerta e som, útil
+  quando a conversa está em andamento. Silenciar tira o alerta que ela já tinha. Vale enquanto a sessão
+  estiver aberta e continua ao recarregar o painel.
+
 ## [0.7.0] - 2026-10-16
 
 ### Alterado

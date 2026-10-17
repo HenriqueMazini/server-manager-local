@@ -114,6 +114,7 @@ O painel relê o `services.yml` sozinho, sem reiniciar.
 | Abrir o sistema no navegador | Links abaixo do nome do projeto |
 | Copiar a URL de um banco ou cache | Clique no endereço do container nos detalhes |
 | Ver as sessões do Claude Code | Primeiro item da lista |
+| Saber quando o Claude terminou | Sino no topo, com som. Ligue ou desligue na engrenagem (configurações) |
 | Ver todas as portas em uso | Seção "Portas", no fim da lista |
 | Resolver conflito de porta | "Copiar prompt" no aviso de conflito e cole no Claude Code do projeto |
 | Dar um apelido ao projeto (ex.: o nome antigo) | Lápis ao lado do nome. Grava ao sair do campo; fica em `data/apelidos.json` |

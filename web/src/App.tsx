@@ -12,6 +12,9 @@ import { Conflicts } from './components/Conflicts'
 import { PortsTable } from './components/PortsTable'
 import { SystemMemory } from './components/SystemMemory'
 import { Orphans } from './components/Orphans'
+import { useReplyAlerts } from './alerts'
+import { AlertBell } from './components/AlertBell'
+import { SettingsModal } from './components/Settings'
 import { cx, Dot, Icon, Spinner, useToast } from './components/ui'
 
 // Depois da resposta, o painel mantém o estado pedido até o snapshot confirmar (ou até este prazo).
@@ -25,6 +28,8 @@ export default function App() {
   const toast = useToast()
   const { theme, toggle } = useTheme()
   const [creating, setCreating] = useState(false)
+  const [settings, setSettings] = useState(false)
+  const alerts = useReplyAlerts(snap)
   const [selected, setSelected] = useState<string | null>(() => {
     try {
       return localStorage.getItem('sm-selected')
@@ -116,7 +121,13 @@ export default function App() {
 
   const current = projects.find((p) => p.key === selected) ?? null
   const detail = selected === CLAUDE_KEY ? (
-    <ClaudeDetail claude={claude} color={colors[CLAUDE_KEY]} onClose={() => select(null)} />
+    <ClaudeDetail
+      claude={claude}
+      color={colors[CLAUDE_KEY]}
+      onClose={() => select(null)}
+      muted={alerts.enabled ? alerts.muted : undefined}
+      onToggleMute={alerts.toggleMute}
+    />
   ) : current && (
     <ProjectDetail
       project={current}
@@ -154,6 +165,15 @@ export default function App() {
             <Icon name="plus" className="size-3.5" />
             <span className="hidden sm:inline">Criar server</span>
           </button>
+          {alerts.enabled && (
+            <AlertBell
+              alerts={alerts.alerts}
+              ring={alerts.ring}
+              onDismiss={alerts.dismiss}
+              onDismissAll={alerts.dismissAll}
+              onOpenSessions={() => setSelected(CLAUDE_KEY)}
+            />
+          )}
           <LiveBadge connection={connection} />
           <button
             type="button"
@@ -163,6 +183,15 @@ export default function App() {
             className="grid size-8 place-items-center rounded-full border border-line bg-surface text-muted transition-colors hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-on"
           >
             <Icon name={theme === 'dark' ? 'sun' : 'moon'} className="size-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setSettings(true)}
+            aria-label="Configurações"
+            title="Configurações"
+            className="grid size-8 place-items-center rounded-full border border-line bg-surface text-muted transition-colors hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-on"
+          >
+            <Icon name="gear" className="size-4" />
           </button>
         </header>
 
@@ -237,6 +266,15 @@ export default function App() {
         </main>
       )}
       {creating && <CreateServerModal onClose={() => setCreating(false)} />}
+      {settings && (
+        <SettingsModal
+          alerts={alerts.enabled}
+          setAlerts={alerts.setEnabled}
+          sound={alerts.sound}
+          setSound={alerts.setSound}
+          onClose={() => setSettings(false)}
+        />
+      )}
       <footer className="mx-auto flex w-full max-w-7xl shrink-0 items-center gap-2 px-4 pb-4 text-[11px] text-faint sm:px-6">
         <span>
           Server Manager <span className="font-mono">v{__APP_VERSION__}</span>

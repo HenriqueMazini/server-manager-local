@@ -62,10 +62,10 @@ export function Spinner({ className }: { className?: string }) {
   )
 }
 
-export type Tone = 'on' | 'warn' | 'off' | 'danger'
+export type Tone = 'on' | 'warn' | 'off' | 'danger' | 'info'
 
 export function Dot({ tone, pulse }: { tone: Tone; pulse?: boolean }) {
-  const color = { on: 'text-on', warn: 'text-warn', danger: 'text-danger', off: 'text-faint' }[tone]
+  const color = { on: 'text-on', warn: 'text-warn', danger: 'text-danger', off: 'text-faint', info: 'text-info' }[tone]
   return (
     <span className={cx('relative inline-block size-2 shrink-0 rounded-full', color, pulse && 'live-dot')}>
       <span
@@ -92,6 +92,11 @@ const paths = {
   close: 'M6 6l12 12M18 6 6 18',
   plus: 'M12 5v14M5 12h14',
   pencil: 'M4 20h4L19 9l-4-4L4 16v4ZM13.5 6.5l4 4',
+  bell: 'M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15L6 16ZM10 20.5a2.2 2.2 0 0 0 4 0',
+  bellOff: 'M6 16V11a6 6 0 0 1 9.3-5M18 9.5V16l1.5 2H8M10 20.5a2.2 2.2 0 0 0 4 0M4 4l16 16',
+  volume: 'M5 9.5h3l4-3.5v12l-4-3.5H5v-5ZM16 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11',
+  gear: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM19.4 13.5l1.6 1-1.5 2.6-1.8-.6a7 7 0 0 1-1.7 1l-.4 1.9h-3l-.4-1.9a7 7 0 0 1-1.7-1l-1.8.6L7 14.5l1.4-1.2a7 7 0 0 1 0-2L7 10l1.5-2.6 1.8.6a7 7 0 0 1 1.7-1l.4-1.9h3l.4 1.9a7 7 0 0 1 1.7 1l1.8-.6L21 10l-1.6 1a7 7 0 0 1 0 2.5Z',
+  volumeOff: 'M5 9.5h3l4-3.5v12l-4-3.5H5v-5ZM16.5 9.5l5 5M21.5 9.5l-5 5',
   checkCircle: 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM8.5 12.5l2.5 2.5 4.5-5',
   xCircle: 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM9.5 9.5l5 5M14.5 9.5l-5 5',
   alertCircle: 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM12 8v4.5M12 16v.01',

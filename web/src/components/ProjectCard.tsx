@@ -44,7 +44,7 @@ function useStatus(p: Project, pending?: Pending): [string, Tone] {
   return [text, pending?.busy ? 'warn' : stateTone[p.state]]
 }
 
-const toneText: Record<Tone, string> = { on: 'text-on-ink', warn: 'text-warn-ink', danger: 'text-danger', off: 'text-faint' }
+const toneText: Record<Tone, string> = { on: 'text-on-ink', warn: 'text-warn-ink', danger: 'text-danger', off: 'text-faint', info: 'text-info-ink' }
 
 type Actions = {
   pending?: Pending

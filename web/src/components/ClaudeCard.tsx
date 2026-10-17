@@ -7,8 +7,9 @@ const DAY = 24 * 60 * 60 * 1000
 // Sessões paradas são classificadas pelo tempo desde a última atualização.
 export const RECENT_DAYS = 3 // até 3 dias: recente
 export const IDLE_DAYS = 7 // 7 dias ou mais: ociosa
+export const REPLY_MINUTES = 30 // saiu de trabalhando há até 30 min: aguardando resposta
 
-type View = { tone: Tone; label: string; key: 'busy' | 'waiting' | 'recent' | 'stale' | 'idle' }
+type View = { tone: Tone; label: string; key: 'busy' | 'waiting' | 'reply' | 'recent' | 'stale' | 'idle' }
 
 export function view(s: ClaudeSession, now = Date.now()): View {
   if (s.status === 'busy') return { tone: 'on', label: 'trabalhando', key: 'busy' }
@@ -16,15 +17,17 @@ export function view(s: ClaudeSession, now = Date.now()): View {
   const updated = s.updatedAt ? Date.parse(s.updatedAt) : NaN
   if (Number.isNaN(updated)) return { tone: 'off', label: 'parada', key: 'stale' }
   const age = now - updated
+  // O horário é o da última mudança de estado: parada há pouco = acabou de sair de trabalhando.
+  if (age <= REPLY_MINUTES * 60 * 1000) return { tone: 'info', label: 'aguardando resposta', key: 'reply' }
   if (age <= RECENT_DAYS * DAY) return { tone: 'warn', label: 'recente', key: 'recent' }
   if (age >= IDLE_DAYS * DAY) return { tone: 'danger', label: 'ociosa', key: 'idle' }
   return { tone: 'off', label: 'parada', key: 'stale' }
 }
 
-const toneText: Record<Tone, string> = { on: 'text-on-ink', warn: 'text-warn-ink', danger: 'text-danger', off: 'text-faint' }
+const toneText: Record<Tone, string> = { on: 'text-on-ink', warn: 'text-warn-ink', danger: 'text-danger', off: 'text-faint', info: 'text-info-ink' }
 
-// Ordem dos grupos: trabalhando, aguardando você, ociosa, parada, recente. Dentro de cada grupo, por nome.
-const groupOrder: Record<View['key'], number> = { busy: 0, waiting: 1, idle: 2, stale: 3, recent: 4 }
+// Ordem dos grupos: trabalhando, aguardando você, aguardando resposta, ociosa, parada, recente. Dentro de cada grupo, por nome.
+const groupOrder: Record<View['key'], number> = { busy: 0, waiting: 1, reply: 2, idle: 3, stale: 4, recent: 5 }
 const collator = new Intl.Collator('pt-BR', { sensitivity: 'base', numeric: true })
 
 export function sortSessions(sessions: ClaudeSession[], now = Date.now()): ClaudeSession[] {
@@ -42,9 +45,11 @@ function summaryText(c: ClaudeSummary): string {
   const parts = [`${n} ${n === 1 ? 'aberta' : 'abertas'}`]
   const busy = count('busy')
   const waiting = count('waiting')
+  const reply = count('reply')
   const idle = count('idle')
   if (busy) parts.push(`${busy} trabalhando`)
   if (waiting) parts.push(`${waiting} aguardando você`)
+  if (reply) parts.push(`${reply} aguardando resposta`)
   if (idle) parts.push(`${idle} ${idle === 1 ? 'ociosa' : 'ociosas'}`)
   return parts.join(' · ')
 }
@@ -131,7 +136,19 @@ function since(iso?: string): string {
   return a && a !== 'agora' ? `aberta há ${a}` : ''
 }
 
-export function ClaudeDetail({ claude: c, color, onClose }: { claude: ClaudeSummary; color: string; onClose: () => void }) {
+export function ClaudeDetail({
+  claude: c,
+  color,
+  onClose,
+  muted,
+  onToggleMute,
+}: {
+  claude: ClaudeSummary
+  color: string
+  onClose: () => void
+  muted?: Set<number> // ausente quando os alertas estão desligados nas configurações
+  onToggleMute?: (pid: number) => void
+}) {
   return (
     <article className="overflow-hidden rounded-2xl border border-line bg-surface">
       <header className="flex items-start gap-3 border-b border-line px-5 py-4">
@@ -141,6 +158,7 @@ export function ClaudeDetail({ claude: c, color, onClose }: { claude: ClaudeSumm
           <p className="mt-0.5 text-xs text-faint">{summaryText(c)} · por grupo e, em cada grupo, por nome</p>
           <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-faint">
             <span className="inline-flex items-center gap-1.5"><Dot tone="on" /> trabalhando</span>
+            <span className="inline-flex items-center gap-1.5"><Dot tone="info" /> aguardando resposta: saiu de trabalhando há até {REPLY_MINUTES} min</span>
             <span className="inline-flex items-center gap-1.5"><Dot tone="warn" /> recente: até {RECENT_DAYS} dias, ou aguardando você</span>
             <span className="inline-flex items-center gap-1.5"><Dot tone="off" /> parada</span>
             <span className="inline-flex items-center gap-1.5"><Dot tone="danger" /> ociosa: {IDLE_DAYS} dias ou mais</span>
@@ -180,6 +198,21 @@ export function ClaudeDetail({ claude: c, color, onClose }: { claude: ClaudeSumm
                       {[s.cwd, since(s.startedAt), s.version && `v${s.version}`, `pid ${s.pid}`].filter(Boolean).join(' · ')}
                     </div>
                   </div>
+                  {muted && onToggleMute && (
+                    <button
+                      type="button"
+                      onClick={() => onToggleMute(s.pid)}
+                      aria-pressed={muted.has(s.pid)}
+                      aria-label={muted.has(s.pid) ? `Reativar alertas de ${s.name}` : `Silenciar alertas de ${s.name}`}
+                      title={muted.has(s.pid) ? 'Silenciada: sem alerta e som. Clique para reativar.' : 'Silenciar alerta e som desta sessão'}
+                      className={cx(
+                        'grid size-7 shrink-0 place-items-center rounded-md transition-colors hover:bg-raised',
+                        muted.has(s.pid) ? 'text-faint hover:text-fg' : 'text-info-ink hover:text-fg',
+                      )}
+                    >
+                      <Icon name={muted.has(s.pid) ? 'bellOff' : 'bell'} className="size-3.5" />
+                    </button>
+                  )}
                   <div className="text-right">
                     <div className="tabular font-mono text-xs text-muted">{bytes(s.memUsed)}</div>
                     <div className="text-[11px] text-faint">
