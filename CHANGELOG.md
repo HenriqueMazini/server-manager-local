@@ -11,6 +11,8 @@ Anote cada mudança em **Não lançado** no mesmo commit que a faz. O script
 
 ## [Não lançado]
 
+## [1.3.1] - 2026-10-17
+
 ### Documentação
 - README atualizado: alertas com som e silêncio por sessão, sessões fechadas e como retomar, apagar
   sessões pelo ajudante, tabela dos estados das sessões, pasta `data/`, segurança do ajudante,
@@ -164,7 +166,8 @@ Primeira versão estável: projetos, sessões do Claude, memória, portas e aler
 - Inventário e conflitos de porta, com prompt para o Claude Code.
 - Guia `docs/ADICIONAR-PROJETO.md`.
 
-[Não lançado]: https://github.com/HenriqueMazini/server-manager-local/compare/v1.3.0...HEAD
+[Não lançado]: https://github.com/HenriqueMazini/server-manager-local/compare/v1.3.1...HEAD
+[1.3.1]: https://github.com/HenriqueMazini/server-manager-local/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/HenriqueMazini/server-manager-local/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/HenriqueMazini/server-manager-local/compare/v1.0.0...v1.2.0
 [1.0.0]: https://github.com/HenriqueMazini/server-manager-local/compare/v0.7.0...v1.0.0
