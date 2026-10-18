@@ -11,6 +11,8 @@ Anote cada mudança em **Não lançado** no mesmo commit que a faz. O script
 
 ## [Não lançado]
 
+## [1.5.0] - 2026-10-18
+
 ### Alterado
 - Containers temporários (Testcontainers e `docker run --rm`) não aparecem mais como projetos. Uma
   linha no fim da lista diz quantos estão ocultos e mostra os nomes ao clicar.
@@ -178,7 +180,8 @@ Primeira versão estável: projetos, sessões do Claude, memória, portas e aler
 - Inventário e conflitos de porta, com prompt para o Claude Code.
 - Guia `docs/ADICIONAR-PROJETO.md`.
 
-[Não lançado]: https://github.com/HenriqueMazini/server-manager-local/compare/v1.4.0...HEAD
+[Não lançado]: https://github.com/HenriqueMazini/server-manager-local/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/HenriqueMazini/server-manager-local/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/HenriqueMazini/server-manager-local/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/HenriqueMazini/server-manager-local/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/HenriqueMazini/server-manager-local/compare/v1.2.0...v1.3.0
