@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react'
-import { testChime } from '../alerts'
+import { useEffect, useRef, useState } from 'react'
+import { desktopPermission, testChime, testDesktop, type DesktopPermission } from '../alerts'
 import { cx, Icon, Switch } from './ui'
 
 function Row({ title, detail, checked, onChange, disabled, children }: {
@@ -28,14 +28,23 @@ export function SettingsModal({
   setAlerts,
   sound,
   setSound,
+  desktop,
+  setDesktop,
   onClose,
 }: {
   alerts: boolean
   setAlerts: (v: boolean) => void
   sound: boolean
   setSound: (v: boolean) => void
+  desktop: boolean
+  setDesktop: (v: boolean) => Promise<DesktopPermission>
   onClose: () => void
 }) {
+  const [perm, setPerm] = useState<DesktopPermission>(desktopPermission)
+  const permNote: Partial<Record<DesktopPermission, string>> = {
+    denied: 'O navegador está bloqueando as notificações deste site. Libere no cadeado ao lado do endereço e ligue de novo.',
+    unsupported: 'Este navegador não mostra notificações do sistema.',
+  }
   const close = useRef(onClose)
   close.current = onClose
   useEffect(() => {
@@ -61,6 +70,24 @@ export function SettingsModal({
           checked={alerts}
           onChange={setAlerts}
         />
+        <Row
+          title="Notificação no computador"
+          detail="Aviso do sistema (o mesmo das outras notificações da sua área de trabalho) quando uma sessão termina e o painel não está em foco. A aba do painel precisa estar aberta, mesmo minimizada."
+          checked={desktop}
+          onChange={async (v) => setPerm(await setDesktop(v))}
+          disabled={!alerts || perm === 'unsupported'}
+        >
+          {permNote[perm] && <p className="mt-1.5 text-xs text-warn-ink">{permNote[perm]}</p>}
+          <button
+            type="button"
+            onClick={testDesktop}
+            disabled={!alerts || !desktop}
+            className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-line px-2.5 py-1 text-xs text-muted hover:text-fg disabled:opacity-50"
+          >
+            <Icon name="bell" className="size-3.5" />
+            Testar notificação
+          </button>
+        </Row>
         <Row
           title="Tocar som"
           detail="Um toque curto quando chega um alerta novo. O navegador só toca som depois que você clicou na página."

@@ -11,6 +11,12 @@ Anote cada mudança em **Não lançado** no mesmo commit que a faz. O script
 
 ## [Não lançado]
 
+### Adicionado
+- Notificação no computador (a do sistema, como as outras da área de trabalho) quando uma sessão do
+  Claude sai de trabalhando e o painel não está em foco. Liga nas configurações, que pedem a permissão
+  do navegador, com botão para testar. Uma notificação por parada, respeitando o silêncio por sessão;
+  clicar nela traz o painel e abre as sessões. A aba do painel precisa estar aberta.
+
 ## [1.3.1] - 2026-10-17
 
 ### Documentação

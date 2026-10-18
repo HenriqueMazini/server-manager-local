@@ -123,6 +123,7 @@ O painel relê o `services.yml` sozinho, sem reiniciar.
 | Copiar a URL de um banco ou cache | Clique no endereço do container nos detalhes |
 | Ver as sessões do Claude Code | Primeiro item da lista. Os detalhes abrem à direita |
 | Saber quando o Claude terminou | Sino no topo, com som e o número no título da aba. Ligue ou desligue na engrenagem (configurações) |
+| Receber o aviso no computador, fora do painel | Engrenagem → "Notificação no computador". O navegador pede permissão uma vez; a aba do painel precisa estar aberta, mesmo minimizada |
 | Silenciar uma sessão que está em conversa | Sino pequeno antes do nome da sessão |
 | Retomar uma conversa fechada | Botão de terminal na conversa, em "Fechadas": copia o `claude --resume` |
 | Apagar uma sessão do Claude | Lixeira na sessão, aberta ou fechada. Confirma numa janela; encerra e apaga a conversa |

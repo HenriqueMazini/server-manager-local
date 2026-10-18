@@ -29,7 +29,7 @@ export default function App() {
   const { theme, toggle } = useTheme()
   const [creating, setCreating] = useState(false)
   const [settings, setSettings] = useState(false)
-  const alerts = useReplyAlerts(snap)
+  const alerts = useReplyAlerts(snap, () => setSelected(CLAUDE_KEY))
   const [selected, setSelected] = useState<string | null>(() => {
     try {
       return localStorage.getItem('sm-selected')
@@ -273,6 +273,8 @@ export default function App() {
           setAlerts={alerts.setEnabled}
           sound={alerts.sound}
           setSound={alerts.setSound}
+          desktop={alerts.desktop}
+          setDesktop={alerts.setDesktop}
           onClose={() => setSettings(false)}
         />
       )}

@@ -8,6 +8,7 @@ export type ReplyAlert = { pid: number; name: string; cwd?: string; since: strin
 const DISMISSED = 'sm-alertas-fechados'
 const SOUND = 'sm-alertas-som'
 const ENABLED = 'sm-alertas-exibir'
+const DESKTOP = 'sm-alertas-computador'
 const MUTED = 'sm-alertas-mudos'
 const DAY = 24 * 60 * 60 * 1000
 
@@ -61,11 +62,12 @@ function saveMuted(m: Set<number>) {
   }
 }
 
-function readFlag(key: string): boolean {
+function readFlag(key: string, fallback = true): boolean {
   try {
-    return localStorage.getItem(key) !== '0'
+    const v = localStorage.getItem(key)
+    return v === null ? fallback : v !== '0'
   } catch {
-    return true
+    return fallback
   }
 }
 
@@ -107,11 +109,47 @@ export function playChime() {
  * Um alerta por sessão (pelo pid). Some sozinho quando a sessão volta a trabalhar, fica
  * aguardando você ou é encerrada. Fechar guarda a parada como vista.
  */
-export function useReplyAlerts(snap: Snapshot | null) {
+// ---- notificação do sistema (GNOME, macOS...), pelo navegador
+
+export type DesktopPermission = NotificationPermission | 'unsupported'
+
+export function desktopPermission(): DesktopPermission {
+  return typeof Notification === 'undefined' ? 'unsupported' : Notification.permission
+}
+
+function showDesktop(a: ReplyAlert, onOpen?: () => void) {
+  if (desktopPermission() !== 'granted') return
+  try {
+    const n = new Notification(`${a.name} terminou`, {
+      body: a.cwd ? `Aguardando sua resposta · ${a.cwd}` : 'Aguardando sua resposta',
+      tag: `sm-${a.key}`, // a mesma parada não vira duas notificações, nem com duas abas abertas
+      icon: '/icon.svg',
+    })
+    n.onclick = () => {
+      window.focus()
+      onOpen?.()
+      n.close()
+    }
+  } catch {
+    /* navegador sem suporte a notificação fora de service worker */
+  }
+}
+
+// Mostra uma notificação de exemplo (botão "Testar" nas configurações).
+export function testDesktop() {
+  showDesktop({ pid: 0, name: 'Sessão de exemplo', cwd: '~/projetos/exemplo', since: new Date().toISOString(), key: `teste-${Date.now()}` })
+}
+
+export function useReplyAlerts(snap: Snapshot | null, onOpen?: () => void) {
   const [alerts, setAlerts] = useState<ReplyAlert[]>([])
   const [ring, setRing] = useState(0) // muda a cada alerta novo: dispara a animação do sino
   const [sound, setSoundState] = useState(() => readFlag(SOUND))
   const [enabled, setEnabledState] = useState(() => readFlag(ENABLED))
+  const [desktop, setDesktopState] = useState(() => readFlag(DESKTOP, false) && desktopPermission() === 'granted')
+  const desktopRef = useRef(desktop)
+  desktopRef.current = desktop
+  const onOpenRef = useRef(onOpen)
+  onOpenRef.current = onOpen
   const enabledRef = useRef(enabled)
   enabledRef.current = enabled
   const dismissed = useRef(loadDismissed())
@@ -144,6 +182,7 @@ export function useReplyAlerts(snap: Snapshot | null) {
     }
     const byPid = new Map(sessions.filter((s) => !mutedRef.current.has(s.pid)).map((s) => [s.pid, s]))
     let fresh = false
+    const born: ReplyAlert[] = [] // alertas que acabaram de surgir
     const next: ReplyAlert[] = []
     const seen = new Set<number>()
     // Mantém os que continuam valendo; a sessão voltou a trabalhar ou foi fechada: o alerta some.
@@ -167,7 +206,9 @@ export function useReplyAlerts(snap: Snapshot | null) {
       if (seen.has(s.pid) || mutedRef.current.has(s.pid) || view(s).key !== 'reply') continue
       const key = alertKey(s)
       if (dismissed.current[key]) continue
-      next.push({ pid: s.pid, name: s.name, cwd: s.cwd, since: s.updatedAt ?? new Date().toISOString(), key })
+      const alert = { pid: s.pid, name: s.name, cwd: s.cwd, since: s.updatedAt ?? new Date().toISOString(), key }
+      next.push(alert)
+      born.push(alert)
       fresh = true
     }
     next.sort((a, b) => Date.parse(b.since) - Date.parse(a.since))
@@ -177,6 +218,8 @@ export function useReplyAlerts(snap: Snapshot | null) {
     if (fresh && !first.current && enabledRef.current) {
       setRing((r) => r + 1)
       if (soundRef.current) playChime()
+      // No computador só quando o painel não está na sua frente: com ele em foco, o sino já avisa.
+      if (desktopRef.current && !document.hasFocus()) born.forEach((a) => showDesktop(a, onOpenRef.current))
     }
     first.current = false
   }, [snap])
@@ -230,6 +273,21 @@ export function useReplyAlerts(snap: Snapshot | null) {
     document.title = shown.length ? `(${shown.length}) Server Manager` : 'Server Manager'
   }, [shown.length])
 
+  // Ligar pede a permissão do navegador; sem permissão, a opção volta a desligada.
+  const setDesktop = useCallback(async (on: boolean): Promise<DesktopPermission> => {
+    if (!on) {
+      setDesktopState(false)
+      writeFlag(DESKTOP, false)
+      return desktopPermission()
+    }
+    let perm = desktopPermission()
+    if (perm === 'default') perm = await Notification.requestPermission()
+    const ok = perm === 'granted'
+    setDesktopState(ok)
+    writeFlag(DESKTOP, ok)
+    return perm
+  }, [])
+
   return {
     alerts: shown,
     ring,
@@ -241,5 +299,7 @@ export function useReplyAlerts(snap: Snapshot | null) {
     dismissAll,
     muted,
     toggleMute,
+    desktop,
+    setDesktop,
   }
 }
