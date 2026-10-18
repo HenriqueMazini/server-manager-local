@@ -11,6 +11,8 @@ Anote cada mudança em **Não lançado** no mesmo commit que a faz. O script
 
 ## [Não lançado]
 
+## [1.4.0] - 2026-10-18
+
 ### Adicionado
 - Notificação no computador (a do sistema, como as outras da área de trabalho) quando uma sessão do
   Claude sai de trabalhando e o painel não está em foco. Liga nas configurações, que pedem a permissão
@@ -172,7 +174,8 @@ Primeira versão estável: projetos, sessões do Claude, memória, portas e aler
 - Inventário e conflitos de porta, com prompt para o Claude Code.
 - Guia `docs/ADICIONAR-PROJETO.md`.
 
-[Não lançado]: https://github.com/HenriqueMazini/server-manager-local/compare/v1.3.1...HEAD
+[Não lançado]: https://github.com/HenriqueMazini/server-manager-local/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/HenriqueMazini/server-manager-local/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/HenriqueMazini/server-manager-local/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/HenriqueMazini/server-manager-local/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/HenriqueMazini/server-manager-local/compare/v1.0.0...v1.2.0
