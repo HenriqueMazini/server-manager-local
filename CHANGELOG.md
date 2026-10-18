@@ -11,6 +11,10 @@ Anote cada mudança em **Não lançado** no mesmo commit que a faz. O script
 
 ## [Não lançado]
 
+### Alterado
+- Containers temporários (Testcontainers e `docker run --rm`) não aparecem mais como projetos. Uma
+  linha no fim da lista diz quantos estão ocultos e mostra os nomes ao clicar.
+
 ## [1.4.0] - 2026-10-18
 
 ### Adicionado

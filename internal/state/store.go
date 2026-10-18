@@ -168,6 +168,7 @@ func (s *Store) tick(ctx context.Context) {
 
 	svcs, all := projects.Build(infos, mem, listeners, cfg)
 	snap.Orphans = projects.Orphans(infos, cfg)
+	snap.Temporary = projects.Temporaries(infos)
 	aliases := s.labels.All()
 	for i := range svcs {
 		svcs[i].Alias = aliases[svcs[i].Key]

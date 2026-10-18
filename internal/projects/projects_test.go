@@ -182,3 +182,38 @@ func TestOrphansAfterRename(t *testing.T) {
 		}
 	}
 }
+
+func TestTemporaryContainersAreHidden(t *testing.T) {
+	cfg, _ := config.Parse([]byte(vendasYAML))
+	infos := append(machine(),
+		dockerx.Info{ID: "t1", Name: "sleepy_galileo", Image: "postgres:16-alpine", Running: true, Labels: map[string]string{"org.testcontainers": "true"}},
+		dockerx.Info{ID: "t2", Name: "testcontainers-ryuk-abc", Image: "testcontainers/ryuk", Running: true, Remove: true, Labels: map[string]string{"org.testcontainers": "true"}},
+		dockerx.Info{ID: "t3", Name: "cranky_shannon", Image: "node:24", Running: true, Remove: true, Labels: map[string]string{}},
+		// Compose com --rm continua sendo do projeto, não temporário.
+		dockerx.Info{ID: "t4", Name: "loja-migrate-run-1", Image: "loja", Remove: true, Labels: map[string]string{dockerx.LabelProject: "loja"}},
+	)
+	ps, _ := Build(infos, nil, nil, cfg)
+	for _, p := range ps {
+		for _, c := range p.Infra {
+			if c.Name == "sleepy_galileo" || c.Name == "cranky_shannon" || c.Name == "testcontainers-ryuk-abc" {
+				t.Errorf("temporário virou item de projeto: %s em %s", c.Name, p.Key)
+			}
+		}
+		if p.Key == "sleepy_galileo" || p.Key == "cranky_shannon" {
+			t.Errorf("temporário virou projeto: %s", p.Key)
+		}
+	}
+	tmp := Temporaries(infos)
+	if len(tmp) != 3 || tmp[0].Name != "cranky_shannon" || tmp[0].Origin != "--rm" || tmp[1].Origin != "testcontainers" {
+		t.Fatalf("temporários = %+v", tmp)
+	}
+	found := false
+	for _, p := range ps {
+		for _, c := range p.Infra {
+			found = found || c.Name == "loja-migrate-run-1"
+		}
+	}
+	if !found {
+		t.Error("container de compose com --rm deve continuar no projeto")
+	}
+}

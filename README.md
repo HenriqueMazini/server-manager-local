@@ -85,6 +85,8 @@ docker compose up -d --build
 
 Assim que abre, o painel já mostra cada projeto Docker Compose e cada container da máquina,
 agrupados por projeto. Você já pode ligar, desligar e ver a memória deles.
+Containers temporários, criados por testes (Testcontainers) ou com `docker run --rm`, ficam fora
+da lista; uma linha no fim diz quantos estão ocultos.
 
 Para juntar num só projeto os containers e os apps de desenvolvimento, cadastre o projeto de um
 destes jeitos:

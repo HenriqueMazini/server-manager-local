@@ -107,7 +107,7 @@ func Build(infos []dockerx.Info, mem map[string]dockerx.Mem, listeners []model.H
 
 	apps := map[string]dockerx.Info{} // nome do container -> info
 	for _, in := range infos {
-		if in.Labels[dockerx.LabelSelf] == "true" {
+		if in.Labels[dockerx.LabelSelf] == "true" || TemporaryOrigin(in) != "" {
 			continue
 		}
 		if in.Labels[dockerx.LabelAppProject] != "" {
@@ -148,6 +148,34 @@ func Build(infos []dockerx.Info, mem map[string]dockerx.Mem, listeners []model.H
 	}
 	Sort(out)
 	return out, b.all
+}
+
+// TemporaryOrigin diz se o container é temporário, criado por uma ferramenta e não por um projeto:
+// Testcontainers (bancos de teste com nome aleatório) ou docker run --rm (apaga ao terminar).
+// Containers de projetos compose e os criados pelo painel nunca contam como temporários.
+func TemporaryOrigin(in dockerx.Info) string {
+	if in.Labels[dockerx.LabelProject] != "" || in.Labels[dockerx.LabelAppProject] != "" {
+		return ""
+	}
+	if in.Labels["org.testcontainers"] == "true" {
+		return "testcontainers"
+	}
+	if in.Remove {
+		return "--rm"
+	}
+	return ""
+}
+
+// Temporaries lista os containers temporários, para o aviso de ocultos no fim da lista.
+func Temporaries(infos []dockerx.Info) []model.Temporary {
+	out := []model.Temporary{}
+	for _, in := range infos {
+		if o := TemporaryOrigin(in); o != "" {
+			out = append(out, model.Temporary{Name: in.Name, Image: in.Image, Origin: o, Running: in.Running})
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
 }
 
 // Orphans lista os containers de app criados pelo painel cujo projeto ou app não existe mais no

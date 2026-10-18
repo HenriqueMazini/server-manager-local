@@ -46,6 +46,7 @@ type Info struct {
 	Health   string
 	Running  bool
 	Labels   map[string]string
+	Remove   bool // criado com --rm: o Docker apaga ao terminar
 	Bindings []Binding
 }
 
@@ -112,6 +113,7 @@ func (c *Client) List(ctx context.Context) ([]Info, error) {
 				info.Health = string(ct.State.Health.Status)
 			}
 			if ct.HostConfig != nil {
+				info.Remove = ct.HostConfig.AutoRemove
 				info.Bindings = bindingsOf(ct.HostConfig.PortBindings)
 			}
 			out[i] = info

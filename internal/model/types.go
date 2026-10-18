@@ -129,6 +129,14 @@ type Conflict struct {
 	Prompt       string         `json:"prompt"`
 }
 
+// Temporary é um container temporário criado por ferramentas (testes, docker run --rm). Não vira projeto.
+type Temporary struct {
+	Name    string `json:"name"`
+	Image   string `json:"image"`
+	Origin  string `json:"origin"` // testcontainers | --rm
+	Running bool   `json:"running"`
+}
+
 // Orphan é um container de app criado pelo painel que não pertence mais a nenhum projeto.
 type Orphan struct {
 	ID      string `json:"id"`
@@ -152,5 +160,6 @@ type Snapshot struct {
 	Listeners []HostListener `json:"listeners"`
 	Claude    claude.Summary `json:"claude"`
 	Apps      []procfs.App   `json:"apps"`
-	Orphans   []Orphan       `json:"orphans"` // sobras de apps renomeados, para remover // aplicativos que mais usam memória na máquina
+	Orphans   []Orphan       `json:"orphans"`
+	Temporary []Temporary    `json:"temporary"` // ocultos da lista de projetos // sobras de apps renomeados, para remover // aplicativos que mais usam memória na máquina
 }

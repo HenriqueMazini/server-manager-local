@@ -12,6 +12,7 @@ import { Conflicts } from './components/Conflicts'
 import { PortsTable } from './components/PortsTable'
 import { SystemMemory } from './components/SystemMemory'
 import { Orphans } from './components/Orphans'
+import { Temporaries } from './components/Temporaries'
 import { useReplyAlerts } from './alerts'
 import { AlertBell } from './components/AlertBell'
 import { SettingsModal } from './components/Settings'
@@ -249,6 +250,8 @@ export default function App() {
                 ))
               )}
             </div>
+
+            <Temporaries items={snap.temporary ?? []} />
 
             <PortsTable ports={snap.ports} />
           </section>

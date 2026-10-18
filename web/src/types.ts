@@ -122,6 +122,8 @@ export type ClaudeSummary = { available: boolean; canDelete?: boolean; sessions:
 
 export type HostApp = { name: string; memUsed: number; procs: number }
 
+export type Temporary = { name: string; image: string; origin: 'testcontainers' | '--rm'; running: boolean }
+
 export type Orphan = { id: string; name: string; project: string; app: string; running: boolean; status: string }
 
 export type Snapshot = {
@@ -136,4 +138,5 @@ export type Snapshot = {
   claude: ClaudeSummary
   apps: HostApp[]
   orphans: Orphan[]
+  temporary?: Temporary[]
 }
