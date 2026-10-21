@@ -11,6 +11,10 @@ Anote cada mudança em **Não lançado** no mesmo commit que a faz. O script
 
 ## [Não lançado]
 
+### Adicionado
+- Visão geral: um terceiro quadro "Quem ocupa memória · computador", ao lado do de desenvolvimento,
+  com os aplicativos que mais usam memória no computador e quanto está em uso e livre.
+
 ## [2.0.0] - 2026-10-21
 
 ### Adicionado

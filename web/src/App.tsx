@@ -6,7 +6,7 @@ import { useTheme } from './theme'
 import { CreateServerModal } from './components/CreateServer'
 import { bytes } from './format'
 import { useSnapshot } from './useSnapshot'
-import { MemoryBreakdown, memoryItems } from './components/Memory'
+import { ComputerBreakdown, MemoryBreakdown, memoryItems } from './components/Memory'
 import { ProjectPanel, ProjectsTableHead, ProjectTableRow, RunningRow } from './components/ProjectCard'
 import { WorktreeCleanup, WorktreeSummary } from './components/Worktrees'
 import { ComputerMemory, ConflictCard, OrphansCard, PortsCard, TemporariesNote } from './components/SystemPage'
@@ -253,8 +253,11 @@ export default function App() {
         <Kpis host={snap.host} memItems={memItems} colors={colors} claude={claude} projects={mainProjects} worktrees={worktrees.length} go={go} />
         <div className="flex flex-wrap items-start gap-[18px]">
           <AttentionList items={attention} go={go} />
-          <div className="hidden min-w-0 flex-[2_1_340px] sm:flex">
+          <div className="hidden min-w-0 flex-[2_1_280px] sm:flex">
             <MemoryBreakdown items={memItems} colors={colors} history={history} />
+          </div>
+          <div className="hidden min-w-0 flex-[2_1_280px] sm:flex">
+            <ComputerBreakdown host={snap.host} apps={snap.apps ?? []} />
           </div>
         </div>
         <section aria-labelledby="on-title" className="overflow-hidden rounded-[14px] border border-line bg-surface">

@@ -1,4 +1,4 @@
-import type { ClaudeSummary, Project } from '../types'
+import type { ClaudeSummary, HostApp, HostMem, Project } from '../types'
 import { CLAUDE_KEY } from '../colors'
 import type { Sample } from '../useSnapshot'
 import { bytes } from '../format'
@@ -42,7 +42,7 @@ export function MemoryBreakdown({ items, colors, history }: { items: MemoryItem[
   const max = items[0]?.memUsed ?? 0
   const values = history.map((s) => s.dev)
   return (
-    <section aria-labelledby="mem-title" className="min-w-0 flex-[2_1_340px] rounded-[14px] border border-line bg-surface px-[18px] pb-[18px] pt-3.5">
+    <section aria-labelledby="mem-title" className="min-w-0 flex-1 rounded-[14px] border border-line bg-surface px-[18px] pb-[18px] pt-3.5">
       <header className="mb-3.5 flex flex-wrap items-baseline gap-x-2.5">
         <h2 id="mem-title" className="text-sm font-semibold">
           Quem ocupa memória
@@ -76,6 +76,49 @@ export function MemoryBreakdown({ items, colors, history }: { items: MemoryItem[
           {bytes(Math.max(...values))}.
         </p>
       )}
+    </section>
+  )
+}
+
+// Quantos aplicativos aparecem no quadro do computador.
+const TOP_APPS = 6
+
+// Mesmo quadro, para o computador inteiro: os aplicativos que mais ocupam memória.
+export function ComputerBreakdown({ host, apps }: { host: HostMem; apps: HostApp[] }) {
+  const top = apps
+    .filter((a) => a.name !== 'Outros' && a.memUsed > 0)
+    .sort((a, b) => b.memUsed - a.memUsed)
+    .slice(0, TOP_APPS)
+  const max = top[0]?.memUsed ?? 0
+  return (
+    <section aria-labelledby="pc-mem-title" className="min-w-0 flex-1 rounded-[14px] border border-line bg-surface px-[18px] pb-[18px] pt-3.5">
+      <header className="mb-3.5 flex flex-wrap items-baseline gap-x-2.5">
+        <h2 id="pc-mem-title" className="text-sm font-semibold">
+          Quem ocupa memória
+        </h2>
+        <span className="text-xs text-faint">computador</span>
+      </header>
+      {top.length === 0 ? (
+        <p className="text-sm text-faint">Sem dados dos aplicativos do computador.</p>
+      ) : (
+        <ul className="flex flex-col gap-3" title="Cada aplicativo soma a memória de todos os seus processos; memória compartilhada entra em cada um.">
+          {top.map((a) => (
+            <li key={a.name}>
+              <div className="flex items-baseline gap-2 text-[13px]">
+                <span className="size-2 shrink-0 rounded-full bg-muted" />
+                <span className="min-w-0 flex-1 truncate text-body">{a.name}</span>
+                <span className="tabular font-mono text-fg">{bytes(a.memUsed)}</span>
+              </div>
+              <div className="mt-1.5 h-1 rounded-full bg-track">
+                <div className="h-full rounded-full bg-muted transition-[width] duration-700" style={{ width: `${max ? Math.max((a.memUsed / max) * 100, 1) : 0}%` }} />
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="mt-4 text-xs text-faint">
+        {bytes(host.used)} em uso de {bytes(host.total)} · {bytes(host.available)} livre.
+      </p>
     </section>
   )
 }
