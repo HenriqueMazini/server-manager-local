@@ -1,27 +1,44 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { projectAction } from './api'
-import { CLAUDE_KEY, projectColors } from './colors'
-import { ClaudeDetail, ClaudeRow } from './components/ClaudeCard'
+import { projectColors } from './colors'
+import { GROUPS, SessionsList, StatusHelp, view, type View } from './components/ClaudeCard'
 import { useTheme } from './theme'
 import { CreateServerModal } from './components/CreateServer'
 import { bytes } from './format'
-import { useSnapshot, type Connection } from './useSnapshot'
-import { MemoryCard } from './components/MemoryCard'
-import { ProjectDetail, ProjectRow } from './components/ProjectCard'
-import { Conflicts } from './components/Conflicts'
-import { PortsTable } from './components/PortsTable'
-import { SystemMemory } from './components/SystemMemory'
-import { Orphans } from './components/Orphans'
-import { Temporaries } from './components/Temporaries'
+import { useSnapshot } from './useSnapshot'
+import { MemoryBreakdown, memoryItems } from './components/Memory'
+import { ProjectPanel, ProjectsTableHead, ProjectTableRow, RunningRow } from './components/ProjectCard'
+import { WorktreeCleanup, WorktreeSummary } from './components/Worktrees'
+import { ComputerMemory, ConflictCard, OrphansCard, PortsCard, TemporariesNote } from './components/SystemPage'
 import { useReplyAlerts } from './alerts'
 import { AlertBell } from './components/AlertBell'
 import { SettingsModal } from './components/Settings'
+import { attentionItems, AttentionList, Kpis } from './components/Overview'
+import { MobileNav, Sidebar, type Badge } from './components/Nav'
+import { Search } from './components/Search'
+import { PAGES, usePage, type Page } from './pages'
 import { cx, Dot, Icon, Spinner, useToast } from './components/ui'
+import type { Project } from './types'
 
 // Depois da resposta, o painel mantém o estado pedido até o snapshot confirmar (ou até este prazo).
 const SETTLE_MS = 4000
 
 type PendingEntry = { running: boolean; busy: boolean; until: number; restarting?: boolean }
+
+type ProjectFilter = 'todos' | 'ligados' | 'desligados'
+
+function PageHeader({ page, subtitle, children }: { page: Page; subtitle?: ReactNode; children?: ReactNode }) {
+  const info = PAGES.find((p) => p.key === page)!
+  return (
+    <header className="flex flex-wrap items-center gap-3">
+      <div className="min-w-0 flex-[1_1_220px]">
+        <h1 className="truncate text-[17px] font-semibold tracking-[-0.02em] sm:text-[22px]">{info.title}</h1>
+        <p className="mt-1 hidden text-[13px] text-faint sm:block">{subtitle ?? info.subtitle}</p>
+      </div>
+      {children}
+    </header>
+  )
+}
 
 export default function App() {
   const { snap, history, connection } = useSnapshot()
@@ -30,7 +47,10 @@ export default function App() {
   const { theme, toggle } = useTheme()
   const [creating, setCreating] = useState(false)
   const [settings, setSettings] = useState(false)
-  const alerts = useReplyAlerts(snap, () => setSelected(CLAUDE_KEY))
+  const [page, go] = usePage()
+  const alerts = useReplyAlerts(snap, () => go('sessoes'))
+  const [projectFilter, setProjectFilter] = useState<ProjectFilter>('todos')
+  const [sessionFilter, setSessionFilter] = useState<View['key'] | null>(null)
   const [selected, setSelected] = useState<string | null>(() => {
     try {
       return localStorage.getItem('sm-selected')
@@ -38,18 +58,30 @@ export default function App() {
       return null
     }
   })
+  const remember = (key: string | null) => {
+    try {
+      if (key) localStorage.setItem('sm-selected', key)
+      else localStorage.removeItem('sm-selected')
+    } catch {
+      /* sem storage: vale só nesta aba */
+    }
+  }
   const select = useCallback((key: string | null) => {
     setSelected((cur) => {
       const next = cur === key ? null : key
-      try {
-        if (next) localStorage.setItem('sm-selected', next)
-        else localStorage.removeItem('sm-selected')
-      } catch {
-        /* sem storage: vale só nesta aba */
-      }
+      remember(next)
       return next
     })
   }, [])
+  // Vindo de outra tela: abre o projeto na tela de projetos, sem alternar.
+  const openProject = useCallback(
+    (key: string) => {
+      setSelected(key)
+      remember(key)
+      go('projetos')
+    },
+    [go],
+  )
   const latest = useRef(snap)
   latest.current = snap
 
@@ -115,160 +147,306 @@ export default function App() {
   )
 
   const projects = snap?.projects ?? []
-  const colors = useMemo(() => projectColors(projects), [projects])
-  const on = projects.filter((p) => p.running > 0).length
+  // Worktrees ficam juntas do projeto principal, e não como projetos soltos.
+  const mainProjects = useMemo(
+    () => projects.filter((p) => !p.worktree || !projects.some((m) => m.dir === p.worktree!.mainDir)),
+    [projects],
+  )
+  const worktreesOf = (m: Project) => projects.filter((p) => p.worktree && p.worktree.mainDir === m.dir)
+  const worktrees = projects.filter((p) => p.worktree && !mainProjects.includes(p))
+  const colors = useMemo(() => projectColors(mainProjects), [mainProjects])
   const claude = snap?.claude ?? { available: false, sessions: [], memUsed: 0 }
-  const devMem = projects.reduce((n, p) => n + p.memUsed, 0) + claude.memUsed
+  const memItems = useMemo(() => memoryItems(projects, claude), [projects, claude])
+  const devMem = memItems.reduce((n, p) => n + p.memUsed, 0)
+  const on = mainProjects.filter((p) => p.running > 0)
+  const attention = snap ? attentionItems(snap, worktrees) : []
+  const now = Date.now()
+  const sessionCount = (k: View['key']) => claude.sessions.filter((s) => view(s, now).key === k).length
+  const waiting = sessionCount('waiting') + sessionCount('reply')
+  const system = attention.filter((a) => a.page === 'sistema').length
+  const maxMem = Math.max(0, ...mainProjects.map((p) => p.memUsed))
+  const conflictOf = (key: string) => snap?.conflicts.find((c) => c.mover.projectKey === key || c.keeper?.projectKey === key)?.hostPort
+
+  const badges: Record<Page, Badge> = {
+    geral: attention.length ? { text: String(attention.length), tone: 'warn' } : null,
+    projetos: snap ? { text: `${on.length}/${mainProjects.length}`, tone: 'plain' } : null,
+    sessoes: waiting ? { text: String(waiting), tone: 'info' } : null,
+    sistema: system ? { text: String(system), tone: 'warn' } : null,
+  }
 
   const current = projects.find((p) => p.key === selected) ?? null
-  const detail = selected === CLAUDE_KEY ? (
-    <ClaudeDetail
-      claude={claude}
-      color={colors[CLAUDE_KEY]}
-      onClose={() => select(null)}
-      muted={alerts.enabled ? alerts.muted : undefined}
-      onToggleMute={alerts.toggleMute}
-      projects={projects}
-    />
-  ) : current && (
-    <ProjectDetail
-      project={current}
-      color={colors[current.key]}
-      pending={pending[current.key]}
-      onToggle={onToggle}
-      onRestart={onRestart}
-      onClose={() => select(null)}
-    />
+  const panel = current && (
+    <ProjectPanel project={current} pending={pending[current.key]} onToggle={onToggle} onRestart={onRestart} onClose={() => select(null)} />
+  )
+  const actions = (p: Project) => ({ pending: pending[p.key], onToggle, onRestart })
+
+  const outdated = snap?.version && snap.version !== __APP_VERSION__
+  const version = outdated ? (
+    <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+      <span className="text-warn-ink">
+        servidor em <span className="font-mono">v{snap!.version}</span>
+      </span>
+      <button type="button" onClick={() => location.reload()} className="text-fg underline-offset-2 hover:underline">
+        recarregar
+      </button>
+    </span>
+  ) : null
+
+  const bell = alerts.enabled && (
+    <AlertBell alerts={alerts.alerts} ring={alerts.ring} onDismiss={alerts.dismiss} onDismissAll={alerts.dismissAll} onOpenSessions={() => go('sessoes')} />
   )
 
-  return (
-    <div className="flex flex-col lg:h-dvh">
-      <div className="mx-auto w-full max-w-7xl shrink-0 px-4 pt-5 sm:px-6">
-        <header className="mb-4 flex items-center gap-3">
-          <Logo />
-          <div className="min-w-0 flex-1">
-            <h1 className="text-base font-semibold tracking-tight">Server Manager</h1>
-            <p className="truncate text-xs text-faint">
-              {snap ? (
-                <>
-                  {on} de {projects.length} {projects.length === 1 ? 'projeto ligado' : 'projetos ligados'} · {bytes(devMem)} em uso
-                </>
-              ) : (
-                'Conectando ao Docker…'
-              )}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setCreating(true)}
-            aria-label="Criar server"
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-fg px-3 py-1.5 text-xs font-medium text-bg transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-on"
-          >
-            <Icon name="plus" className="size-3.5" />
-            <span className="hidden sm:inline">Criar server</span>
-          </button>
-          {alerts.enabled && (
-            <AlertBell
-              alerts={alerts.alerts}
-              ring={alerts.ring}
-              onDismiss={alerts.dismiss}
-              onDismissAll={alerts.dismissAll}
-              onOpenSessions={() => setSelected(CLAUDE_KEY)}
-            />
-          )}
-          <LiveBadge connection={connection} />
-          <button
-            type="button"
-            onClick={toggle}
-            aria-label={theme === 'dark' ? 'Usar tema claro' : 'Usar tema escuro'}
-            title={theme === 'dark' ? 'Tema claro' : 'Tema escuro'}
-            className="grid size-8 place-items-center rounded-full border border-line bg-surface text-muted transition-colors hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-on"
-          >
-            <Icon name={theme === 'dark' ? 'sun' : 'moon'} className="size-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => setSettings(true)}
-            aria-label="Configurações"
-            title="Configurações"
-            className="grid size-8 place-items-center rounded-full border border-line bg-surface text-muted transition-colors hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-on"
-          >
-            <Icon name="gear" className="size-4" />
-          </button>
-        </header>
-
-        {snap?.error && (
-          <div className="mb-4 flex items-start gap-3 rounded-xl border border-danger/30 bg-danger/[0.05] px-4 py-3 text-sm text-danger">
-            <Icon name="alert" className="mt-0.5 shrink-0" />
-            <span className="break-words">{snap.error}</span>
-          </div>
-        )}
-
-        {snap && (
-          <div className="mb-4 grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
-            <MemoryCard host={snap.host} projects={projects} claude={claude} colors={colors} history={history} />
-            <SystemMemory host={snap.host} apps={snap.apps ?? []} />
-          </div>
-        )}
+  // No celular não há barra lateral: criar server, tema, ajustes e versão ficam no fim de cada tela.
+  const mobileFooter = (
+    <footer className="mt-8 flex flex-col gap-3 text-xs text-faint lg:hidden">
+      <div className="flex gap-2">
+        <button type="button" onClick={() => setCreating(true)} className="flex h-11 flex-1 items-center justify-center gap-2 rounded-[10px] bg-fg text-[13px] font-semibold text-bg">
+          <Icon name="plus" className="size-4" />
+          Criar server
+        </button>
+        <button type="button" onClick={toggle} aria-label="Trocar o tema" className="grid size-11 place-items-center rounded-[10px] border border-edge text-muted">
+          <Icon name={theme === 'dark' ? 'sun' : 'moon'} className="size-4" />
+        </button>
+        <button type="button" onClick={() => setSettings(true)} aria-label="Configurações" className="grid size-11 place-items-center rounded-[10px] border border-edge text-muted">
+          <Icon name="gear" className="size-4" />
+        </button>
       </div>
+      <span className="flex items-center gap-2">
+        <Dot tone={connection === 'live' ? 'on' : 'warn'} />
+        {connection === 'live' ? 'ao vivo' : 'reconectando'} · v{__APP_VERSION__}
+      </span>
+      {version}
+    </footer>
+  )
 
-      {!snap ? (
-        <Loading />
-      ) : (
-        <main className="mx-auto grid w-full max-w-7xl flex-1 grid-cols-[minmax(0,1fr)] gap-4 px-4 pb-3 sm:px-6 lg:min-h-0 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-          <section className="scroll-area space-y-4 lg:min-h-0 lg:overflow-y-auto lg:pr-3" aria-label="Projetos">
-            <Conflicts conflicts={snap.conflicts} />
+  const error = snap?.error && (
+    <div className="flex items-start gap-3 rounded-xl border border-danger/30 bg-danger/[0.05] px-4 py-3 text-sm text-danger">
+      <Icon name="alert" className="mt-0.5 shrink-0" />
+      <span className="break-words">{snap.error}</span>
+    </div>
+  )
 
-            <Orphans orphans={snap.orphans ?? []} />
+  const shownProjects = mainProjects.filter((p) => (projectFilter === 'todos' ? true : projectFilter === 'ligados' ? p.running > 0 : p.running === 0))
+  const withWorktrees = mainProjects.filter((m) => worktreesOf(m).length > 0)
+  const nothingToClean = !snap?.conflicts.length && !withWorktrees.length && !(snap?.orphans ?? []).length
+  const main = 'flex min-w-0 flex-col gap-5 px-4 pb-10 pt-[18px] sm:gap-[22px] sm:px-8 sm:pt-6'
 
-            <div className="space-y-2">
-              <h2 className="px-1 text-xs font-medium uppercase tracking-[0.12em] text-faint">
-                Projetos <span className="normal-case tracking-normal">· {projects.length}</span>
-              </h2>
-              <div className="space-y-2">
-                <ClaudeRow claude={claude} color={colors[CLAUDE_KEY]} selected={selected === CLAUDE_KEY} onSelect={() => select(CLAUDE_KEY)} />
-                {selected === CLAUDE_KEY && <div className="lg:hidden">{detail}</div>}
-              </div>
-              {projects.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-line px-6 py-10 text-center text-sm text-faint">
-                  Nenhum container encontrado. Suba um projeto com <code className="font-mono text-muted">docker compose up -d</code> e ele aparece aqui.
-                </div>
-              ) : (
-                projects.map((p) => (
-                  <div key={p.key} className="space-y-2">
-                    <ProjectRow
-                      project={p}
-                      color={colors[p.key]}
-                      selected={p.key === selected}
-                      onSelect={select}
-                      pending={pending[p.key]}
-                      onToggle={onToggle}
-                      onRestart={onRestart}
-                    />
-                    {p.key === selected && <div className="lg:hidden">{detail}</div>}
-                  </div>
-                ))
-              )}
+  let content: ReactNode
+  if (!snap) {
+    content = (
+      <main className={main}>
+        <PageHeader page={page} subtitle="Conectando ao Docker…" />
+        <div className="flex items-center justify-center gap-3 py-24 text-sm text-faint">
+          <Spinner className="size-4" />
+          Carregando containers…
+        </div>
+      </main>
+    )
+  } else if (page === 'geral') {
+    content = (
+      <main className={main}>
+        <PageHeader page="geral">
+          <Search snap={snap} go={go} openProject={openProject} />
+          {bell}
+        </PageHeader>
+        {error}
+        <Kpis host={snap.host} memItems={memItems} colors={colors} claude={claude} projects={mainProjects} worktrees={worktrees.length} go={go} />
+        <div className="flex flex-wrap items-start gap-[18px]">
+          <AttentionList items={attention} go={go} />
+          <div className="hidden min-w-0 flex-[2_1_340px] sm:flex">
+            <MemoryBreakdown items={memItems} colors={colors} history={history} />
+          </div>
+        </div>
+        <section aria-labelledby="on-title" className="overflow-hidden rounded-[14px] border border-line bg-surface">
+          <header className="flex items-center gap-2.5 border-b border-line px-3.5 py-3 sm:px-[18px] sm:py-3.5">
+            <h2 id="on-title" className="text-[13px] font-semibold sm:text-sm">
+              Ligados agora
+            </h2>
+            <button type="button" onClick={() => go('projetos')} className="ml-auto hidden text-xs text-muted hover:text-fg sm:block">
+              Ver todos os projetos
+            </button>
+          </header>
+          {on.length === 0 ? (
+            <p className="px-[18px] py-5 text-sm text-faint">Nenhum projeto ligado agora.</p>
+          ) : (
+            <ul>
+              {on.map((p) => (
+                <RunningRow key={p.key} project={p} onOpen={openProject} {...actions(p)} />
+              ))}
+            </ul>
+          )}
+        </section>
+        {mobileFooter}
+      </main>
+    )
+  } else if (page === 'projetos') {
+    content = (
+      <div className="flex min-h-dvh">
+        <main className={cx(main, 'flex-1 gap-[18px] sm:gap-[18px] sm:px-7')}>
+          <PageHeader page="projetos">
+            <div role="group" aria-label="Filtrar por status" className="flex rounded-[10px] border border-edge bg-surface p-[3px]">
+              {(
+                [
+                  ['todos', 'Todos', mainProjects.length],
+                  ['ligados', 'Ligados', on.length],
+                  ['desligados', 'Desligados', mainProjects.length - on.length],
+                ] as const
+              ).map(([k, label, n]) => (
+                <button
+                  key={k}
+                  type="button"
+                  aria-pressed={projectFilter === k}
+                  onClick={() => setProjectFilter(k)}
+                  className={cx('rounded-[7px] px-3 py-1.5 text-xs transition-colors', projectFilter === k ? 'bg-raised font-medium text-fg' : 'text-muted hover:text-fg')}
+                >
+                  {label} {n}
+                </button>
+              ))}
             </div>
-
-            <Temporaries items={snap.temporary ?? []} />
-
-            <PortsTable ports={snap.ports} />
-          </section>
-
-          <section className="scroll-area hidden lg:block lg:min-h-0 lg:overflow-y-auto lg:pr-3" aria-label="Detalhes do projeto">
-            {detail ?? (
-              <div className="grid h-full min-h-48 place-items-center rounded-2xl border border-dashed border-line px-6 text-center text-sm text-faint">
-                <p>
-                  Selecione um projeto à esquerda para ver
-                  <br />
-                  apps, containers, portas e logs.
-                </p>
-              </div>
-            )}
-          </section>
+          </PageHeader>
+          {error}
+          {mainProjects.length === 0 ? (
+            <div className="rounded-[14px] border border-dashed border-line px-6 py-10 text-center text-sm text-faint">
+              Nenhum container encontrado. Suba um projeto com <code className="font-mono text-muted">docker compose up -d</code> ou use Criar server.
+            </div>
+          ) : (
+            <div role="table" aria-label="Projetos" className="overflow-hidden rounded-[14px] border border-line bg-surface">
+              <ProjectsTableHead />
+              {shownProjects.length === 0 && (
+                <p className="px-4 py-6 text-center text-sm text-faint">Nenhum projeto {projectFilter === 'ligados' ? 'ligado' : 'desligado'}.</p>
+              )}
+              {shownProjects.map((p) => (
+                <div key={p.key} role="rowgroup" className="border-t border-divider first:border-t-0 [&>[role=row]:first-child]:border-t-0">
+                  <ProjectTableRow
+                    project={p}
+                    color={colors[p.key]}
+                    maxMem={maxMem}
+                    conflict={conflictOf(p.key)}
+                    selected={p.key === selected}
+                    onSelect={select}
+                    {...actions(p)}
+                  />
+                  {p.key === selected && <div className="border-t border-line bg-panel lg:hidden">{panel}</div>}
+                  {worktreesOf(p).length > 0 && <WorktreeSummary items={worktreesOf(p)} onManage={() => go('sistema')} />}
+                </div>
+              ))}
+            </div>
+          )}
+          {mobileFooter}
         </main>
-      )}
+        <aside aria-label="Detalhes do projeto" className="scroll-area sticky top-0 hidden h-dvh w-[420px] shrink-0 overflow-y-auto border-l border-line bg-panel lg:block xl:w-[480px]">
+          {panel ?? (
+            <div className="grid h-full place-items-center px-8 text-center text-sm text-faint">
+              <p>
+                Selecione um projeto para ver
+                <br />
+                apps, containers, portas e logs.
+              </p>
+            </div>
+          )}
+        </aside>
+      </div>
+    )
+  } else if (page === 'sessoes') {
+    const filter = sessionFilter && sessionCount(sessionFilter) ? sessionFilter : null
+    const chip = (active: boolean) =>
+      cx(
+        'flex items-center gap-2 rounded-[10px] border px-3 py-2 text-[13px] text-fg transition-colors',
+        active ? 'border-faint/40 bg-raised' : 'border-edge bg-surface hover:border-faint/40',
+      )
+    content = (
+      <main className={cx(main, 'max-w-[1180px]')}>
+        <PageHeader
+          page="sessoes"
+          subtitle={
+            claude.sessions.length
+              ? `${claude.sessions.length} ${claude.sessions.length === 1 ? 'aberta' : 'abertas'} · ${bytes(claude.memUsed)} · as que pedem você ficam no topo.`
+              : undefined
+          }
+        >
+          <span className="hidden sm:inline-flex">
+            <StatusHelp />
+          </span>
+        </PageHeader>
+        {error}
+        {claude.sessions.length > 0 && (
+          <div role="group" aria-label="Filtrar por status" className="flex flex-wrap gap-2">
+            <button type="button" aria-pressed={!filter} onClick={() => setSessionFilter(null)} className={chip(!filter)}>
+              <span className="size-2 rounded-full bg-fg" />
+              Todas
+              <span className="tabular font-mono text-xs text-faint">{claude.sessions.length}</span>
+            </button>
+            {GROUPS.map((g) => {
+              const n = sessionCount(g.key)
+              if (!n) return null
+              return (
+                <button key={g.key} type="button" aria-pressed={filter === g.key} onClick={() => setSessionFilter(filter === g.key ? null : g.key)} className={chip(filter === g.key)}>
+                  <Dot tone={g.tone} />
+                  {g.title}
+                  <span className="tabular font-mono text-xs text-faint">{n}</span>
+                </button>
+              )
+            })}
+          </div>
+        )}
+        <SessionsList
+          claude={claude}
+          muted={alerts.enabled ? alerts.muted : undefined}
+          onToggleMute={alerts.toggleMute}
+          projects={projects}
+          filter={filter ? [filter] : undefined}
+        />
+        {mobileFooter}
+      </main>
+    )
+  } else {
+    content = (
+      <main className={main}>
+        <PageHeader page="sistema" />
+        {error}
+        <div className="flex flex-wrap items-start gap-[18px]">
+          <section aria-labelledby="clean-title" className="flex min-w-0 flex-[3_1_520px] flex-col gap-3">
+            <h2 id="clean-title" className="text-sm font-semibold">
+              Para resolver
+            </h2>
+            {nothingToClean && (
+              <p className="flex items-center gap-2.5 rounded-[14px] border border-line bg-surface px-[18px] py-4 text-sm text-muted">
+                <Icon name="checkCircle" className="size-4 text-on-ink" />
+                Nenhum conflito de porta e nada para limpar.
+              </p>
+            )}
+            {snap.conflicts.map((c) => (
+              <ConflictCard key={c.id} c={c} />
+            ))}
+            {withWorktrees.map((m) => (
+              <WorktreeCleanup key={m.key} main={m.name} items={worktreesOf(m)} />
+            ))}
+            <OrphansCard orphans={snap.orphans ?? []} />
+            <TemporariesNote items={snap.temporary ?? []} />
+          </section>
+          <ComputerMemory host={snap.host} dev={devMem} apps={snap.apps ?? []} />
+        </div>
+        <PortsCard ports={snap.ports} />
+        {mobileFooter}
+      </main>
+    )
+  }
+
+  return (
+    <div className="lg:flex">
+      <Sidebar
+        page={page}
+        go={go}
+        badges={badges}
+        onCreate={() => setCreating(true)}
+        connection={connection}
+        version={version}
+        themeIcon={theme === 'dark' ? 'sun' : 'moon'}
+        onTheme={toggle}
+        onSettings={() => setSettings(true)}
+      />
+      <div className="min-w-0 flex-1 pb-24 lg:pb-0">{content}</div>
+      <MobileNav page={page} go={go} />
       {creating && <CreateServerModal onClose={() => setCreating(false)} />}
       {settings && (
         <SettingsModal
@@ -281,59 +459,6 @@ export default function App() {
           onClose={() => setSettings(false)}
         />
       )}
-      <footer className="mx-auto flex w-full max-w-7xl shrink-0 items-center gap-2 px-4 pb-4 text-[11px] text-faint sm:px-6">
-        <span>
-          Server Manager <span className="font-mono">v{__APP_VERSION__}</span>
-        </span>
-        {snap?.version && snap.version !== __APP_VERSION__ && (
-          <>
-            <span aria-hidden>·</span>
-            <span className="text-warn-ink">
-              servidor atualizado para <span className="font-mono">v{snap.version}</span>
-            </span>
-            <button type="button" onClick={() => location.reload()} className="rounded-md px-1.5 py-0.5 text-fg underline-offset-2 hover:underline">
-              recarregar
-            </button>
-          </>
-        )}
-      </footer>
-    </div>
-  )
-}
-
-function LiveBadge({ connection }: { connection: Connection }) {
-  const live = connection === 'live'
-  return (
-    <span
-      className={cx(
-        'inline-flex shrink-0 items-center gap-2 rounded-full border border-line bg-surface px-2.5 py-1.5 text-xs sm:px-3 sm:py-1',
-        live ? 'text-muted' : 'text-warn-ink',
-      )}
-    >
-      <Dot tone={live ? 'on' : 'warn'} pulse={live} />
-      <span className="hidden sm:inline">{live ? 'ao vivo' : connection === 'connecting' ? 'conectando' : 'reconectando'}</span>
-    </span>
-  )
-}
-
-function Logo() {
-  return (
-    <span className="grid size-9 place-items-center rounded-xl border border-line bg-surface">
-      <svg viewBox="0 0 24 24" className="size-5" fill="none" aria-hidden>
-        <rect x="4" y="5" width="16" height="5" rx="1.8" stroke="currentColor" strokeWidth="1.5" />
-        <rect x="4" y="14" width="16" height="5" rx="1.8" stroke="currentColor" strokeWidth="1.5" />
-        <circle cx="16.5" cy="7.5" r="1.1" className="fill-on" />
-        <circle cx="16.5" cy="16.5" r="1.1" className="fill-faint" />
-      </svg>
-    </span>
-  )
-}
-
-function Loading() {
-  return (
-    <div className="flex items-center justify-center gap-3 py-24 text-sm text-faint">
-      <Spinner className="size-4" />
-      Carregando containers…
     </div>
   )
 }

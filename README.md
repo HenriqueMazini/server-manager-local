@@ -116,22 +116,29 @@ O painel relê o `services.yml` sozinho, sem reiniciar.
 
 ## Uso no dia a dia
 
+O painel tem quatro telas, na barra lateral (no celular, embaixo): **Visão geral** (números-chave,
+o que precisa de você e o que está ligado), **Projetos**, **Sessões do Claude** e **Sistema e limpeza**
+(conflitos, worktrees, sobras, memória do computador e portas). A tela fica no endereço (`#projetos`,
+`#sessoes`...), então recarregar e o botão voltar do navegador funcionam. Na visão geral, Ctrl K abre a busca de projetos,
+sessões e portas.
+
 | Quero | Como |
 |---|---|
 | Ligar ou desligar um projeto | Interruptor à direita do projeto |
-| Liberar memória de um projeto ligado | Botão de reiniciar, ao lado do interruptor |
-| Ver apps, containers, portas e logs | Clique no nome do projeto: os detalhes abrem à direita |
-| Abrir o sistema no navegador | Links abaixo do nome do projeto |
+| Liberar memória de um projeto ligado | "Reiniciar" no painel do projeto, ou o botão ao lado do interruptor em "Ligados agora" |
+| Ver apps, containers, portas e logs | Projetos → clique no projeto: o painel ao lado tem as abas Visão, Logs e Portas |
+| Abrir o sistema no navegador | Links em "Ligados agora" ou "Abrir" no painel do projeto |
 | Copiar a URL de um banco ou cache | Clique no endereço do container nos detalhes |
-| Ver as sessões do Claude Code | Primeiro item da lista. Os detalhes abrem à direita |
-| Saber quando o Claude terminou | Sino no topo, com som e o número no título da aba. Ligue ou desligue na engrenagem (configurações) |
+| Ver as sessões do Claude Code | Tela Sessões do Claude. Os filtros do topo mostram só um status |
+| Saber quando o Claude terminou | Sino no topo, com som e o número no título da aba. Ligue ou desligue na engrenagem (configurações), no pé da barra lateral |
 | Receber o aviso no computador, fora do painel | Engrenagem → "Notificação no computador". O navegador pede permissão uma vez; a aba do painel precisa estar aberta, mesmo minimizada |
 | Silenciar uma sessão que está em conversa | Sino pequeno antes do nome da sessão |
-| Retomar uma conversa fechada | Botão de terminal na conversa, em "Fechadas": copia o `claude --resume` |
+| Retomar uma conversa fechada | Abra "Fechadas" no fim da lista de sessões e use o botão de terminal: copia o `claude --resume` |
 | Apagar uma sessão do Claude | Lixeira na sessão, aberta ou fechada. Confirma numa janela; encerra e apaga a conversa |
-| Ver todas as portas em uso | Seção "Portas", no fim da lista |
-| Resolver conflito de porta | "Copiar prompt" no aviso de conflito e cole no Claude Code do projeto |
-| Dar um apelido ao projeto (ex.: o nome antigo) | Lápis ao lado do nome. Grava ao sair do campo; fica em `data/apelidos.json` |
+| Ver todas as portas em uso | Sistema e limpeza → "Portas" |
+| Resolver conflito de porta | Aparece em "Precisa da sua atenção". Em Sistema e limpeza, "Copiar prompt" e cole no Claude Code do projeto |
+| Limpar os servidores das worktrees de feature | Sistema e limpeza → "Worktrees de …". Remova uma, as já removidas do git ou todas; os volumes só saem se marcar |
+| Dar um apelido ao projeto (ex.: o nome antigo) | Lápis ao lado do nome, no painel do projeto. Grava ao sair do campo; fica em `data/apelidos.json` |
 | Trocar o tema | Botão ao lado de "ao vivo". Claro das 6h às 18h e escuro no resto do dia; a troca manual vale até a próxima virada |
 
 **Estados das sessões do Claude**, na ordem da lista (o ícone "i" ao lado do título explica cada um):
@@ -220,7 +227,7 @@ git pull
 scripts/install.sh
 ```
 
-Uma aba aberta numa versão antiga avisa no rodapé que o painel foi atualizado.
+Uma aba aberta numa versão antiga avisa no pé da barra lateral que o painel foi atualizado.
 
 ## Desinstalar
 
@@ -256,6 +263,7 @@ Stack: backend em **Go** com o SDK oficial do Docker, painel em **React 19**, **
 ```bash
 go test ./...                                           # testes do backend
 python3 -m unittest helper/test_ajudante.py             # testes do ajudante
+SM_DOCKER_TEST=1 go test ./internal/dockerx/            # integração com o Docker real
 SM_ADDR=127.0.0.1:9091 SM_CONFIG=services.yml go run .  # backend fora do Docker
 cd web && npm install && SM_BACKEND=http://localhost:9091 npm run dev   # painel com hot reload
 cd web && npm run typecheck && npm run build            # build embutido no binário Go
@@ -289,6 +297,7 @@ API:
 | `PUT /api/projects/{chave}/alias` | apelido do projeto |
 | `POST /api/analyze` | análise do "Criar server" |
 | `POST /api/orphans/remove` | remover containers antigos sem projeto |
+| `POST /api/worktrees/remove` | remover containers, redes e, se pedido, volumes de worktrees |
 | `POST /api/claude/sessions/{pid}/delete`, `POST /api/claude/closed/{id}/delete` | apagar sessão aberta ou fechada |
 | `GET /api/containers/{id}/logs` | logs de um container |
 

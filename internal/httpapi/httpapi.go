@@ -44,6 +44,7 @@ func Handler(st *state.Store, dc *dockerx.Client, lb *labels.Store, web fs.FS) h
 	mux.HandleFunc("GET /api/ports", a.ports)
 	mux.HandleFunc("PUT /api/projects/{key}/alias", a.setAlias)
 	mux.HandleFunc("POST /api/orphans/remove", a.removeOrphans)
+	mux.HandleFunc("POST /api/worktrees/remove", a.removeWorktrees)
 	mux.HandleFunc("POST /api/claude/sessions/{pid}/delete", a.deleteSession)
 	mux.HandleFunc("POST /api/claude/closed/{id}/delete", a.deleteClosed)
 	mux.HandleFunc("POST /api/projects/{key}/{action}", a.projectAction)
@@ -262,6 +263,50 @@ func (a *api) deleteClosed(w http.ResponseWriter, r *http.Request) {
 	}
 	a.st.Poke()
 	writeJSON(w, http.StatusOK, map[string]any{"name": name, "stopped": false, "removed": len(res.Removed)})
+}
+
+// removeWorktrees remove os containers (e, se pedido, os volumes) de projetos de worktrees. Só aceita
+// chaves que o servidor reconheceu como worktree: o projeto principal nunca entra.
+func (a *api) removeWorktrees(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Keys    []string `json:"keys"`
+		Volumes bool     `json:"volumes"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 64<<10)).Decode(&body); err != nil || len(body.Keys) == 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "informe as worktrees"})
+		return
+	}
+	allowed := map[string]bool{}
+	for _, p := range a.st.Snapshot().Projects {
+		if p.Worktree != nil && p.Kind == "compose" {
+			allowed[p.Key] = true
+		}
+	}
+	ctx, cancel := actionCtx(r)
+	defer cancel()
+	type item struct {
+		Key string `json:"key"`
+		dockerx.ComposeRemoval
+	}
+	var out []item
+	var failed []string
+	for _, k := range body.Keys {
+		if !allowed[k] {
+			failed = append(failed, k+": não é uma worktree")
+			continue
+		}
+		res := a.dc.RemoveComposeProject(ctx, k, body.Volumes)
+		out = append(out, item{k, res})
+		for _, e := range res.Errors {
+			failed = append(failed, k+": "+e)
+		}
+	}
+	a.st.Poke()
+	if len(failed) > 0 {
+		writeJSON(w, http.StatusBadGateway, map[string]any{"results": out, "error": strings.Join(failed, "; ")})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"results": out})
 }
 
 // removeOrphans apaga as sobras de apps. A lista é recalculada aqui, a partir do Docker e do

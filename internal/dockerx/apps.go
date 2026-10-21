@@ -116,6 +116,53 @@ func (c *Client) ensureImage(ctx context.Context, ref string) error {
 	return nil
 }
 
+// ComposeRemoval é o que foi removido de um projeto compose.
+type ComposeRemoval struct {
+	Containers int      `json:"containers"`
+	Networks   int      `json:"networks"`
+	Volumes    int      `json:"volumes"`
+	Errors     []string `json:"errors,omitempty"`
+}
+
+// RemoveComposeProject faz o equivalente a `docker compose down` sem o arquivo compose: remove os
+// containers e as redes do projeto e, se pedido, os volumes dele.
+func (c *Client) RemoveComposeProject(ctx context.Context, project string, volumes bool) ComposeRemoval {
+	var r ComposeRemoval
+	f := client.Filters{}.Add("label", LabelProject+"="+project)
+	if list, err := c.cli.ContainerList(ctx, client.ContainerListOptions{All: true, Filters: f}); err == nil {
+		for _, s := range list.Items {
+			if _, err := c.cli.ContainerRemove(ctx, s.ID, client.ContainerRemoveOptions{Force: true}); err != nil {
+				r.Errors = append(r.Errors, err.Error())
+			} else {
+				r.Containers++
+			}
+		}
+	} else {
+		r.Errors = append(r.Errors, err.Error())
+	}
+	if nets, err := c.cli.NetworkList(ctx, client.NetworkListOptions{Filters: f}); err == nil {
+		for _, n := range nets.Items {
+			if _, err := c.cli.NetworkRemove(ctx, n.Name, client.NetworkRemoveOptions{}); err != nil {
+				r.Errors = append(r.Errors, err.Error())
+			} else {
+				r.Networks++
+			}
+		}
+	}
+	if volumes {
+		if vols, err := c.cli.VolumeList(ctx, client.VolumeListOptions{Filters: f}); err == nil {
+			for _, v := range vols.Items {
+				if _, err := c.cli.VolumeRemove(ctx, v.Name, client.VolumeRemoveOptions{}); err != nil {
+					r.Errors = append(r.Errors, err.Error())
+				} else {
+					r.Volumes++
+				}
+			}
+		}
+	}
+	return r
+}
+
 // Remove apaga um container, parando-o antes se preciso. Volumes não são apagados.
 func (c *Client) Remove(ctx context.Context, id string) error {
 	_, err := c.cli.ContainerRemove(ctx, id, client.ContainerRemoveOptions{Force: true})

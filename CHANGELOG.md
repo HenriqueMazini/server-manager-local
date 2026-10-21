@@ -11,6 +11,26 @@ Anote cada mudança em **Não lançado** no mesmo commit que a faz. O script
 
 ## [Não lançado]
 
+### Adicionado
+- Worktrees do git: projetos compose que vêm de uma worktree (o `.git` da pasta aponta para outro
+  repositório) ficam num bloco "Worktrees de <projeto>" abaixo do projeto principal, com memória somada,
+  branch e a marca "removida do git" quando a worktree já foi apagada e só sobraram os containers.
+- Remover os containers e as redes de uma worktree, das já removidas do git ou de todas, com janela de
+  confirmação e opção de apagar também os volumes. O código e o projeto principal não são tocados.
+  `POST /api/worktrees/remove` só aceita projetos que o servidor reconheceu como worktree.
+
+### Alterado
+- Layout novo, dividido em quatro telas numa barra lateral (embaixo, no celular). **Visão geral**: números-chave,
+  "Precisa da sua atenção" (sessões esperando, conflitos de porta, worktrees e containers para limpar),
+  quem ocupa memória e os projetos ligados. **Projetos**: tabela com status, acesso, memória e interruptor,
+  filtro por status e um painel ao lado com abas Visão, Logs e Portas. **Sessões do Claude**: agrupadas por
+  status, com filtro e as encerradas recolhidas. **Sistema e limpeza**: conflitos, worktrees, containers sem
+  projeto, memória do computador e a tabela de portas. A tela fica no endereço (`#sessoes`).
+- Busca de projetos, sessões e portas no topo da visão geral; Ctrl K foca o campo.
+- As worktrees aparecem como uma linha curta abaixo do projeto principal; a remoção fica em Sistema e limpeza.
+- No gráfico de memória, as worktrees de um projeto viram uma fatia só; cores e a contagem do topo
+  consideram só os projetos principais.
+
 ## [1.5.0] - 2026-10-18
 
 ### Alterado

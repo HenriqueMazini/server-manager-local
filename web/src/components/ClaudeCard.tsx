@@ -2,7 +2,6 @@ import type { ClaudeSession, ClaudeSummary, ClosedSession } from '../types'
 import { deleteClaudeSession, deleteClosedSession } from '../api'
 import { bytes, shortPath } from '../format'
 import { copyText, cx, Dot, Icon, useToast, type Tone } from './ui'
-import { TINT_CLASSES, TINT_SELECTED_CLASSES, tintStyle } from '../colors'
 import { useState } from 'react'
 import { ConfirmDeleteSession, type DeleteTarget } from './ConfirmDelete'
 
@@ -12,7 +11,7 @@ export const RECENT_DAYS = 3 // até 3 dias: recente
 export const IDLE_DAYS = 7 // 7 dias ou mais: ociosa
 export const REPLY_MINUTES = 30 // saiu de trabalhando há até 30 min: aguardando resposta
 
-type View = { tone: Tone; label: string; key: 'busy' | 'waiting' | 'reply' | 'recent' | 'stale' | 'idle' }
+export type View = { tone: Tone; label: string; key: 'busy' | 'waiting' | 'reply' | 'recent' | 'stale' | 'idle' }
 
 export function view(s: ClaudeSession, now = Date.now()): View {
   if (s.status === 'busy') return { tone: 'on', label: 'trabalhando', key: 'busy' }
@@ -40,84 +39,6 @@ export function sortSessions(sessions: ClaudeSession[], now = Date.now()): Claud
   })
 }
 
-function summaryText(c: ClaudeSummary): string {
-  if (!c.available) return 'indisponível'
-  const n = c.sessions.length
-  if (n === 0) return 'nenhuma sessão aberta'
-  const count = (k: View['key']) => c.sessions.filter((s) => view(s).key === k).length
-  const parts = [`${n} ${n === 1 ? 'aberta' : 'abertas'}`]
-  const busy = count('busy')
-  const waiting = count('waiting')
-  const reply = count('reply')
-  const idle = count('idle')
-  if (busy) parts.push(`${busy} trabalhando`)
-  if (waiting) parts.push(`${waiting} aguardando você`)
-  if (reply) parts.push(`${reply} aguardando resposta`)
-  if (idle) parts.push(`${idle} ${idle === 1 ? 'ociosa' : 'ociosas'}`)
-  const closed = c.closed?.length ?? 0
-  if (closed) parts.push(`${closed} ${closed === 1 ? 'fechada' : 'fechadas'}`)
-  return parts.join(' · ')
-}
-
-function ClaudeMark({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" className={cx('size-4', className)} fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" aria-hidden>
-      <path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8" />
-    </svg>
-  )
-}
-
-// Linha fixa no topo da lista. Só leitura: o painel não abre nem fecha sessões.
-export function ClaudeRow({ claude: c, color, selected, onSelect }: { claude: ClaudeSummary; color: string; selected: boolean; onSelect: () => void }) {
-  const busy = c.sessions.some((s) => s.status === 'busy')
-  const waiting = c.sessions.some((s) => s.status === 'waiting')
-  const tone: Tone = !c.available || c.sessions.length === 0 ? 'off' : waiting ? 'warn' : busy ? 'on' : 'off'
-  return (
-    <article
-      role="button"
-      tabIndex={0}
-      aria-pressed={selected}
-      onClick={onSelect}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          onSelect()
-        }
-      }}
-      className={cx(
-        'group min-w-0 rounded-xl border px-3.5 py-2 transition-colors',
-        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-on',
-        c.memUsed > 0
-          ? selected
-            ? TINT_SELECTED_CLASSES
-            : TINT_CLASSES
-          : selected
-            ? 'border-faint/60 bg-raised'
-            : 'border-line bg-surface hover:border-faint/40',
-      )}
-      style={c.memUsed > 0 ? tintStyle(color) : undefined}
-    >
-      <div className="flex items-center gap-3">
-        <Dot tone={tone} pulse={busy} />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-baseline gap-2">
-            <span className="flex items-center gap-1.5 truncate text-sm font-semibold tracking-tight">
-              <ClaudeMark className="size-3.5 text-faint" />
-              Sessões do Claude
-            </span>
-            <span className={cx('truncate text-[11px]', toneText[tone])}>{summaryText(c)}</span>
-          </div>
-        </div>
-        <div className="flex shrink-0 items-center gap-1.5 text-right">
-          {c.memUsed > 0 && <span className="size-2 rounded-full" style={{ background: color }} />}
-          <span className="tabular w-14 font-mono text-xs text-muted">{c.memUsed > 0 ? bytes(c.memUsed) : '—'}</span>
-        </div>
-        <Icon name="chevronRight" className={cx('size-4 shrink-0 transition-colors', selected ? 'text-fg' : 'text-faint group-hover:text-muted')} />
-      </div>
-    </article>
-  )
-}
-
 function ago(iso?: string): string {
   if (!iso) return ''
   const ms = Date.now() - Date.parse(iso)
@@ -136,182 +57,165 @@ function updated(iso?: string): string {
   return a === 'agora' ? 'atualizada agora' : a && `atualizada há ${a}`
 }
 
-function since(iso?: string): string {
-  const a = ago(iso)
-  return a && a !== 'agora' ? `aberta há ${a}` : ''
+// Grupos da tela, na ordem do design: primeiro o que pede você, depois o resto.
+export const GROUPS: { key: View['key']; title: string; hint: string; tone: Tone; rule: string }[] = [
+  { key: 'waiting', title: 'Aguardando você', hint: 'o Claude pediu sua ação', tone: 'warn', rule: 'o Claude Code pediu sua ação, como uma permissão' },
+  { key: 'reply', title: 'Aguardando resposta', hint: `terminou há menos de ${REPLY_MINUTES} min`, tone: 'info', rule: `saiu de trabalhando há até ${REPLY_MINUTES} min` },
+  { key: 'busy', title: 'Trabalhando', hint: '', tone: 'on', rule: 'o Claude está executando' },
+  { key: 'recent', title: 'Recentes', hint: `até ${RECENT_DAYS} dias`, tone: 'warn', rule: `atualizada há até ${RECENT_DAYS} dias` },
+  { key: 'stale', title: 'Paradas', hint: `entre ${RECENT_DAYS} e ${IDLE_DAYS} dias`, tone: 'off', rule: `entre ${RECENT_DAYS} e ${IDLE_DAYS} dias, ou sem data` },
+  { key: 'idle', title: 'Ociosas', hint: `${IDLE_DAYS} dias ou mais, pode encerrar`, tone: 'danger', rule: `sem atualização há ${IDLE_DAYS} dias ou mais` },
+]
+
+const toneColor: Record<Tone, string> = { on: 'var(--on)', warn: 'var(--warn)', info: 'var(--info)', danger: 'var(--danger)', off: 'var(--faint)' }
+
+// Há quanto tempo a sessão mudou de estado, em texto curto.
+function when(s: ClaudeSession): string {
+  if (s.status === 'busy') return 'agora'
+  if (!s.updatedAt) return '—'
+  const m = Math.floor((Date.now() - Date.parse(s.updatedAt)) / 60000)
+  if (!(m >= 1)) return 'agora'
+  if (m < 60) return `há ${m} min`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `há ${h} h`
+  const d = Math.floor(h / 24)
+  return d === 1 ? 'ontem' : `há ${d} dias`
 }
 
-// Legenda dos status num tooltip: abre com o mouse ou com o foco do teclado.
-function StatusHelp() {
-  const items: [Tone, string, string][] = [
-    ['on', 'trabalhando', 'o Claude está executando'],
-    ['warn', 'aguardando você', 'o Claude Code pediu sua ação, como uma permissão'],
-    ['info', 'aguardando resposta', `saiu de trabalhando há até ${REPLY_MINUTES} min`],
-    ['danger', 'ociosa', `sem atualização há ${IDLE_DAYS} dias ou mais`],
-    ['off', 'parada', `entre ${RECENT_DAYS} e ${IDLE_DAYS} dias, ou sem data`],
-    ['warn', 'recente', `atualizada há até ${RECENT_DAYS} dias`],
-  ]
+// Botão "O que cada status quer dizer": abre a legenda com o mouse, o foco ou um clique.
+export function StatusHelp() {
+  const [open, setOpen] = useState(false)
   return (
-    <span className="group/help relative inline-flex font-normal">
+    <span className="group/help relative inline-flex" onMouseLeave={() => setOpen(false)}>
       <button
         type="button"
-        aria-label="O que significa cada status"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
         aria-describedby="status-help"
-        className="grid size-5 place-items-center rounded-full text-faint transition-colors hover:text-fg focus-visible:text-fg focus-visible:outline-2 focus-visible:outline-on"
+        className="inline-flex items-center gap-1.5 rounded-[10px] border border-edge bg-surface px-3 py-2 text-xs text-muted transition-colors hover:text-fg"
       >
-        <Icon name="infoCircle" className="size-4" />
+        <Icon name="infoCircle" className="size-3.5" />
+        O que cada status quer dizer
       </button>
       <span
         id="status-help"
         role="tooltip"
         className={cx(
-          'invisible absolute left-0 top-7 z-30 w-80 rounded-xl border border-line bg-surface p-3 text-left opacity-0 shadow-2xl transition-opacity',
-          'group-hover/help:visible group-hover/help:opacity-100 group-focus-within/help:visible group-focus-within/help:opacity-100',
+          'absolute right-0 top-11 z-30 w-80 rounded-xl border border-line bg-surface p-3 text-left shadow-2xl transition-opacity',
+          open ? 'visible opacity-100' : 'invisible opacity-0 group-hover/help:visible group-hover/help:opacity-100 group-focus-within/help:visible group-focus-within/help:opacity-100',
         )}
       >
-        <span className="mb-2 block text-[11px] font-medium uppercase tracking-[0.12em] text-faint">Status das sessões</span>
         <span className="block space-y-1.5">
-          {items.map(([tone, label, rule]) => (
-            <span key={label} className="flex items-start gap-2 text-xs leading-snug">
+          {GROUPS.map((g) => (
+            <span key={g.key} className="flex items-start gap-2 text-xs leading-snug">
               <span className="mt-1">
-                <Dot tone={tone} />
+                <Dot tone={g.tone} />
               </span>
               <span>
-                <span className={cx('font-medium', toneText[tone])}>{label}</span>
-                <span className="text-muted">: {rule}</span>
+                <span className={cx('font-medium', toneText[g.tone])}>{g.title}</span>
+                <span className="text-muted">: {g.rule}</span>
               </span>
             </span>
           ))}
         </span>
-        <span className="mt-2.5 block border-t border-line pt-2 text-[11px] text-faint">
-          A lista segue esta ordem e, dentro de cada status, o nome da sessão.
-        </span>
+        <span className="mt-2.5 block border-t border-line pt-2 text-[11px] text-faint">A lista segue esta ordem e, dentro de cada grupo, o nome da sessão.</span>
       </span>
     </span>
   )
 }
 
-export function ClaudeDetail({
+// Sessões abertas agrupadas por status, com silenciar e apagar; as encerradas ficam recolhidas no fim.
+export function SessionsList({
   claude: c,
-  color,
-  onClose,
   muted,
   onToggleMute,
   projects = [],
+  filter,
 }: {
   claude: ClaudeSummary
-  color: string
-  onClose: () => void
   muted?: Set<number> // ausente quando os alertas estão desligados nas configurações
   onToggleMute?: (pid: number) => void
   projects?: { name: string; dir?: string }[]
+  filter?: View['key'][] // só estes grupos; sem filtro também mostra as encerradas
 }) {
   const [deleting, setDeleting] = useState<DeleteTarget | null>(null)
   const askDelete = (s: ClaudeSession) =>
     setDeleting({ name: s.name, cwd: s.cwd, open: true, working: s.status === 'busy', run: () => deleteClaudeSession(s.pid) })
+  const now = Date.now()
+  const groups = GROUPS.filter((g) => !filter || filter.includes(g.key))
+    .map((g) => ({ ...g, items: sortSessions(c.sessions.filter((s) => view(s, now).key === g.key), now) }))
+    .filter((g) => g.items.length)
+  const square = 'grid size-8 shrink-0 place-items-center rounded-lg border border-edge transition-colors'
   return (
     <>
-    {deleting && <ConfirmDeleteSession target={deleting} onClose={() => setDeleting(null)} />}
-    <article className="overflow-hidden rounded-2xl border border-line bg-surface">
-      <header className="flex items-start gap-3 border-b border-line px-5 py-4">
-        <ClaudeMark className="mt-1 text-faint" />
-        <div className="min-w-0 flex-1">
-          <h2 className="flex items-center gap-1.5 text-base font-semibold tracking-tight">
-            Sessões do Claude
-            <StatusHelp />
-          </h2>
-          <p className="mt-0.5 text-xs text-faint">{summaryText(c)}</p>
-        </div>
-        <div className="text-right">
-          <div className="tabular font-mono text-sm">{c.memUsed > 0 ? bytes(c.memUsed) : '—'}</div>
-          <div className="mt-0.5 flex items-center justify-end gap-1.5 text-[11px] text-faint">
-            {c.memUsed > 0 && <span className="size-2 rounded-full" style={{ background: color }} />}
-            memória
-          </div>
-        </div>
-        <button type="button" onClick={onClose} aria-label="Fechar detalhes" className="grid size-7 place-items-center rounded-lg text-faint hover:bg-raised hover:text-fg lg:hidden">
-          <Icon name="close" className="size-3.5" />
-        </button>
-      </header>
+      {deleting && <ConfirmDeleteSession target={deleting} onClose={() => setDeleting(null)} />}
       {!c.available ? (
-        <p className="px-5 py-6 text-sm text-faint">O painel não consegue ver os processos do computador. Suba o painel pelo docker-compose do projeto, que monta o /proc em modo somente leitura.</p>
+        <p className="rounded-[14px] border border-line bg-surface px-5 py-6 text-sm text-faint">
+          O painel não consegue ver os processos do computador. Suba o painel pelo docker-compose do projeto, que monta o /proc em modo somente leitura.
+        </p>
       ) : c.sessions.length === 0 ? (
-        <p className="px-5 py-6 text-sm text-faint">Nenhuma sessão do Claude Code aberta agora.</p>
+        <p className="rounded-[14px] border border-line bg-surface px-5 py-6 text-sm text-faint">Nenhuma sessão do Claude Code aberta agora.</p>
       ) : (
-        <ul>
-          {sortSessions(c.sessions).map((s) => {
-            const v = view(s)
-            const extra = s.children.slice(0, 3)
-            return (
-              <li key={s.pid} className="px-5 py-3 [&+&]:border-t [&+&]:border-line/70">
-                <div className="flex items-center gap-4">
-                  <Dot tone={v.tone} pulse={s.status === 'busy'} />
-                  {muted && onToggleMute && (
-                    <button
-                      type="button"
-                      onClick={() => onToggleMute(s.pid)}
-                      aria-pressed={muted.has(s.pid)}
-                      aria-label={muted.has(s.pid) ? `Reativar alertas de ${s.name}` : `Silenciar alertas de ${s.name}`}
-                      title={muted.has(s.pid) ? 'Silenciada: sem alerta e som. Clique para reativar.' : 'Silenciar alerta e som desta sessão'}
-                      className={cx(
-                        '-mx-1.5 grid size-7 shrink-0 place-items-center rounded-md transition-colors hover:bg-raised',
-                        muted.has(s.pid) ? 'text-faint hover:text-fg' : 'text-info-ink hover:text-fg',
-                      )}
-                    >
-                      <Icon name={muted.has(s.pid) ? 'bellOff' : 'bell'} className="size-3.5" />
-                    </button>
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-baseline gap-2">
-                      <span className="truncate text-sm font-medium">{s.name}</span>
-                      <span className={cx('shrink-0 text-[11px]', toneText[v.tone])}>{v.label}</span>
-                      {s.updatedAt && <span className="shrink-0 text-[11px] text-faint">· {updated(s.updatedAt)}</span>}
-                    </div>
-                    <div className="truncate font-mono text-[11px] text-faint">
-                      {[s.cwd, since(s.startedAt), s.version && `v${s.version}`, `pid ${s.pid}`].filter(Boolean).join(' · ')}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="tabular font-mono text-xs text-muted">{bytes(s.memUsed)}</div>
-                    <div className="text-[11px] text-faint">
-                      {s.procs} {s.procs === 1 ? 'processo' : 'processos'}
-                    </div>
-                  </div>
-                  {c.canDelete && s.id && (
-                    <button
-                      type="button"
-                      onClick={() => askDelete(s)}
-                      aria-label={`Apagar a sessão ${s.name}`}
-                      title="Encerrar e apagar esta sessão"
-                      className="grid size-7 shrink-0 place-items-center rounded-md text-faint transition-colors hover:bg-danger/10 hover:text-danger"
-                    >
-                      <Icon name="trash" className="size-3.5" />
-                    </button>
-                  )}
-                </div>
-                {extra.length > 0 && (
-                  <ul className="mt-1.5 space-y-0.5 pl-6 font-mono text-[11px] text-faint">
-                    {extra.map((ch, i) => (
-                      <li key={i} className="flex gap-3">
-                        <span className="min-w-0 flex-1 truncate">↳ {ch.name}</span>
-                        <span className="tabular shrink-0">{bytes(ch.memUsed)}</span>
-                      </li>
-                    ))}
-                    {s.children.length > extra.length && <li>↳ mais {s.children.length - extra.length}</li>}
-                  </ul>
-                )}
-              </li>
-            )
-          })}
-        </ul>
+        groups.map((g) => (
+          <section key={g.key} className="flex flex-col gap-2">
+            <h2 className={cx('flex items-center gap-2 text-xs font-medium uppercase tracking-[0.1em]', toneText[g.tone])}>
+              {g.title}
+              {g.hint && <span className="normal-case tracking-normal text-faint">· {g.hint}</span>}
+            </h2>
+            <ul className="overflow-hidden rounded-[14px] border border-line bg-surface">
+              {g.items.map((s) => (
+                <li
+                  key={s.pid}
+                  className="flex flex-wrap items-center gap-x-3.5 gap-y-2.5 border-t border-divider px-4 py-[13px] first:border-t-0"
+                  style={{ boxShadow: `inset 3px 0 0 ${toneColor[g.tone]}` }}
+                >
+                  <span className="min-w-0 flex-[1_1_260px]">
+                    <span className="block truncate text-sm font-semibold">{s.name}</span>
+                    <span className="mt-0.5 block truncate font-mono text-[11px] text-faint" title={`pid ${s.pid}${s.version ? ` · v${s.version}` : ''} · ${s.procs} ${s.procs === 1 ? 'processo' : 'processos'}`}>
+                      {s.cwd}
+                    </span>
+                  </span>
+                  <span className="w-[120px] text-xs text-muted">{when(s)}</span>
+                  <span className="tabular w-16 text-right font-mono text-xs">{bytes(s.memUsed)}</span>
+                  <span className="flex gap-1">
+                    {muted && onToggleMute && (
+                      <button
+                        type="button"
+                        onClick={() => onToggleMute(s.pid)}
+                        aria-pressed={muted.has(s.pid)}
+                        aria-label={muted.has(s.pid) ? `Reativar alertas de ${s.name}` : `Silenciar alertas de ${s.name}`}
+                        title={muted.has(s.pid) ? 'Silenciada: sem alerta e som. Clique para reativar.' : 'Silenciar alerta e som desta sessão'}
+                        className={cx(square, muted.has(s.pid) ? 'text-faint hover:text-fg' : 'text-muted hover:text-fg')}
+                      >
+                        <Icon name={muted.has(s.pid) ? 'bellOff' : 'bell'} className="size-3.5" />
+                      </button>
+                    )}
+                    {c.canDelete && s.id && (
+                      <button
+                        type="button"
+                        onClick={() => askDelete(s)}
+                        aria-label={`Encerrar e apagar a sessão ${s.name}`}
+                        title="Encerrar e apagar esta sessão"
+                        className={cx(square, 'text-muted hover:border-danger/40 hover:text-danger')}
+                      >
+                        <Icon name="trash" className="size-3.5" />
+                      </button>
+                    )}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))
       )}
-      <ClosedList
-        closed={c.closed ?? []}
-        projects={projects}
-        canDelete={!!c.canDelete}
-        onDelete={(x) => setDeleting({ name: x.name, cwd: x.cwd, open: false, working: false, run: () => deleteClosedSession(x.id) })}
-      />
-    </article>
+      {!filter && (
+        <ClosedList
+          closed={c.closed ?? []}
+          projects={projects}
+          canDelete={!!c.canDelete}
+          onDelete={(x) => setDeleting({ name: x.name, cwd: x.cwd, open: false, working: false, run: () => deleteClosedSession(x.id) })}
+        />
+      )}
     </>
   )
 }
@@ -361,6 +265,7 @@ function ClosedList({
   onDelete: (c: ClosedSession) => void
 }) {
   const [open, setOpen] = useState<Record<string, boolean>>({})
+  const [expanded, setExpanded] = useState(false)
   const toast = useToast()
   if (!closed.length) return null
   const groups = groupClosed(closed, projects)
@@ -370,11 +275,20 @@ function ClosedList({
     if (await copyText(cmd)) toast('Comando copiado. Cole num terminal para retomar a conversa.')
   }
   return (
-    <section className="border-t border-line">
-      <h3 className="px-5 pb-1 pt-3 text-[11px] font-medium uppercase tracking-[0.12em] text-faint">
-        Fechadas <span className="normal-case tracking-normal">· {closed.length} em {groups.length} {groups.length === 1 ? 'projeto' : 'projetos'}</span>
-      </h3>
-      {groups.map((g) => {
+    <section className="overflow-hidden rounded-[14px] border border-line bg-soft">
+      <button
+        type="button"
+        onClick={() => setExpanded((e) => !e)}
+        aria-expanded={expanded}
+        className="flex w-full flex-wrap items-center gap-x-2.5 gap-y-1 px-4 py-3.5 text-left text-muted hover:text-fg"
+      >
+        <Icon name="chevronRight" className={cx('size-3.5 transition-transform', expanded && 'rotate-90')} />
+        <span className="flex-1 font-medium">Encerradas</span>
+        <span className="text-xs text-faint">
+          {closed.length} {closed.length === 1 ? 'sessão' : 'sessões'} em {groups.length} {groups.length === 1 ? 'projeto' : 'projetos'} · retomáveis com claude --resume
+        </span>
+      </button>
+      {expanded && groups.map((g) => {
         const all = open[g.key]
         const shown = all ? g.items : g.items.slice(0, PER_GROUP)
         return (
@@ -437,7 +351,7 @@ function ClosedList({
           </div>
         )
       })}
-      <div className="h-2" />
+      {expanded && <div className="h-2" />}
     </section>
   )
 }

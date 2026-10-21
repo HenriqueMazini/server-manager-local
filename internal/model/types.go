@@ -44,6 +44,15 @@ type Container struct {
 	MemLimit       uint64 `json:"memLimit"`
 }
 
+// Worktree liga um projeto compose de uma worktree do git ao projeto principal.
+type Worktree struct {
+	MainDir  string `json:"mainDir"`
+	MainName string `json:"mainName"`
+	MainKey  string `json:"mainKey,omitempty"`
+	Branch   string `json:"branch,omitempty"`
+	Missing  bool   `json:"missing,omitempty"` // worktree já removida do git; só sobraram os containers
+}
+
 // Link é um endereço de acesso exibido no cabeçalho do projeto.
 type Link struct {
 	Label string `json:"label"`
@@ -65,6 +74,7 @@ type Project struct {
 	Total    int         `json:"total"`
 	MemUsed  uint64      `json:"memUsed"`
 	Warnings []string    `json:"warnings"`
+	Worktree *Worktree   `json:"worktree,omitempty"`
 }
 
 // HostMem é a memória da máquina lida de /proc/meminfo, em bytes.

@@ -61,21 +61,21 @@ export function AlertBell({
         aria-label={n ? `${n} ${n === 1 ? 'sessão aguardando resposta' : 'sessões aguardando resposta'}` : 'Nenhum alerta'}
         title={n ? 'Sessões do Claude aguardando resposta' : 'Nenhum alerta'}
         className={cx(
-          'relative grid size-8 place-items-center rounded-full border transition-colors',
+          'relative grid size-11 place-items-center rounded-xl border transition-colors sm:size-[38px] sm:rounded-[10px]',
           'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-on',
-          n ? 'border-info/50 bg-info/10 text-info-ink' : 'border-line bg-surface text-faint hover:text-fg',
+          n ? 'border-info/40 bg-info/10 text-info-ink' : 'border-edge bg-surface text-faint hover:text-fg',
         )}
       >
-        <Icon name="bell" className={cx('size-4', shaking && 'bell-ring')} />
+        <Icon name="bell" className={cx('size-[17px]', shaking && 'bell-ring')} />
         {n > 0 && (
-          <span className="absolute -right-1 -top-1 grid min-w-[18px] place-items-center rounded-full bg-info px-1 text-[10px] font-semibold leading-[18px] text-white ring-2 ring-bg">
+          <span className="absolute -right-1.5 -top-1.5 grid min-w-[18px] place-items-center rounded-full bg-[#3b82f6] px-1 text-[10px] font-bold leading-[18px] text-white ring-2 ring-bg">
             {n}
           </span>
         )}
       </button>
 
       {open && n > 0 && (
-        <div className="absolute right-0 top-10 z-30 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-line bg-surface shadow-2xl">
+        <div className="absolute right-0 top-12 z-30 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-line bg-surface shadow-2xl">
           <div className="flex items-center gap-2 border-b border-line px-3.5 py-2.5">
             <span className="flex-1 text-xs font-medium uppercase tracking-[0.12em] text-faint">Aguardando resposta</span>
             <button type="button" onClick={onDismissAll} className="rounded-md px-2 py-0.5 text-xs text-muted hover:bg-raised hover:text-fg">

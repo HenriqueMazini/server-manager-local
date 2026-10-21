@@ -146,6 +146,7 @@ func Build(infos []dockerx.Info, mem map[string]dockerx.Mem, listeners []model.H
 		}
 		out = append(out, *p)
 	}
+	markWorktrees(out, cfg)
 	Sort(out)
 	return out, b.all
 }

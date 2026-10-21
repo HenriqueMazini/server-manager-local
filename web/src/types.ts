@@ -34,6 +34,8 @@ export type Container = {
 
 export type Link = { label: string; url: string }
 
+export type Worktree = { mainDir: string; mainName: string; mainKey?: string; branch?: string; missing?: boolean }
+
 export type Project = {
   key: string
   name: string
@@ -48,6 +50,7 @@ export type Project = {
   total: number
   memUsed: number
   warnings: string[]
+  worktree?: Worktree
 }
 
 export type HostMem = {

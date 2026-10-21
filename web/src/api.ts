@@ -109,3 +109,17 @@ export async function deleteClosedSession(id: string): Promise<{ name: string; s
   if (!res.ok) throw new Error(body.error ?? `Falha (${res.status})`)
   return body
 }
+
+export type WorktreeRemoval = { key: string; containers: number; networks: number; volumes: number; errors?: string[] }
+
+// Remove containers e redes (e, se pedido, volumes) de projetos de worktrees. O servidor só aceita worktrees.
+export async function removeWorktrees(keys: string[], volumes: boolean): Promise<WorktreeRemoval[]> {
+  const res = await fetch('/api/worktrees/remove', {
+    method: 'POST',
+    headers: { ...ACTION_HEADER, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ keys, volumes }),
+  })
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(body.error ?? `Falha (${res.status})`)
+  return body.results ?? []
+}

@@ -19,9 +19,9 @@ export function Switch({
   label: string
   size?: 'sm' | 'md'
 }) {
-  const dims = size === 'md' ? 'h-6 w-11' : 'h-5 w-9'
+  const dims = size === 'md' ? 'h-6 w-10' : 'h-5 w-9'
   const knob = size === 'md' ? 'size-5' : 'size-4'
-  const shift = size === 'md' ? 'translate-x-5' : 'translate-x-4'
+  const shift = 'translate-x-4'
   return (
     <button
       type="button"
@@ -36,7 +36,7 @@ export function Switch({
         'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-on',
         'disabled:cursor-default',
         dims,
-        checked ? 'bg-on' : 'bg-track',
+        checked ? 'bg-switch' : 'bg-edge',
         busy && 'opacity-80',
       )}
     >
@@ -91,6 +91,7 @@ const paths = {
   chevronRight: 'm10 8 4 4-4 4',
   close: 'M6 6l12 12M18 6 6 18',
   plus: 'M12 5v14M5 12h14',
+  branch: 'M6 4v12M6 16a2 2 0 1 0 0 4 2 2 0 0 0 0-4ZM18 4a2 2 0 1 0 0 4 2 2 0 0 0 0-4ZM18 8c0 5-6 4-12 8',
   trash: 'M4 7h16M10 11v6M14 11v6M6 7l1 12.5A1.5 1.5 0 0 0 8.5 21h7a1.5 1.5 0 0 0 1.5-1.5L18 7M9 7V4.5A1.5 1.5 0 0 1 10.5 3h3A1.5 1.5 0 0 1 15 4.5V7',
   pencil: 'M4 20h4L19 9l-4-4L4 16v4ZM13.5 6.5l4 4',
   bell: 'M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15L6 16ZM10 20.5a2.2 2.2 0 0 0 4 0',
@@ -104,6 +105,7 @@ const paths = {
   infoCircle: 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM12 11v5M12 8v.01',
   sun: 'M12 3v1.5M12 19.5V21M4.2 4.2l1.1 1.1M18.7 18.7l1.1 1.1M3 12h1.5M19.5 12H21M4.2 19.8l1.1-1.1M18.7 5.3l1.1-1.1M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z',
   moon: 'M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z',
+  search: 'M11 17a6 6 0 1 0 0-12 6 6 0 0 0 0 12ZM20 20l-4.5-4.5',
 }
 
 export function Icon({ name, className }: { name: keyof typeof paths; className?: string }) {
