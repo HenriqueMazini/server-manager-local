@@ -11,6 +11,8 @@ Anote cada mudança em **Não lançado** no mesmo commit que a faz. O script
 
 ## [Não lançado]
 
+## [2.1.0] - 2026-10-21
+
 ### Adicionado
 - Visão geral: um terceiro quadro "Quem ocupa memória · computador", ao lado do de desenvolvimento,
   com os aplicativos que mais usam memória no computador e quanto está em uso e livre.
@@ -206,7 +208,8 @@ Primeira versão estável: projetos, sessões do Claude, memória, portas e aler
 - Inventário e conflitos de porta, com prompt para o Claude Code.
 - Guia `docs/ADICIONAR-PROJETO.md`.
 
-[Não lançado]: https://github.com/HenriqueMazini/server-manager-local/compare/v2.0.0...HEAD
+[Não lançado]: https://github.com/HenriqueMazini/server-manager-local/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/HenriqueMazini/server-manager-local/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/HenriqueMazini/server-manager-local/compare/v1.5.0...v2.0.0
 [1.5.0]: https://github.com/HenriqueMazini/server-manager-local/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/HenriqueMazini/server-manager-local/compare/v1.3.1...v1.4.0
