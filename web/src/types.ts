@@ -117,6 +117,7 @@ export type ClaudeSession = {
   memUsed: number
   procs: number
   children: ClaudeChild[]
+  cwdGone?: boolean // a pasta foi apagada com a sessão aberta
 }
 
 export type ClosedSession = { id: string; name: string; cwd?: string; updatedAt: string; size: number }

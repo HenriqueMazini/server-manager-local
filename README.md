@@ -129,12 +129,13 @@ sessões e portas.
 | Ver apps, containers, portas e logs | Projetos → clique no projeto: o painel ao lado tem as abas Visão, Logs e Portas |
 | Abrir o sistema no navegador | Links em "Ligados agora" ou "Abrir" no painel do projeto |
 | Copiar a URL de um banco ou cache | Clique no endereço do container nos detalhes |
-| Ver as sessões do Claude Code | Tela Sessões do Claude. Os filtros do topo mostram só um status |
+| Ver as sessões do Claude Code | Tela Sessões do Claude. "Por status" ou "Por projeto" muda o agrupamento; os filtros mostram só um projeto ou um status |
 | Saber quando o Claude terminou | Sino no topo, com som e o número no título da aba. Ligue ou desligue na engrenagem (configurações), no pé da barra lateral |
 | Receber o aviso no computador, fora do painel | Engrenagem → "Notificação no computador". O navegador pede permissão uma vez; a aba do painel precisa estar aberta, mesmo minimizada |
 | Silenciar uma sessão que está em conversa | Sino pequeno antes do nome da sessão |
 | Retomar uma conversa fechada | Abra "Fechadas" no fim da lista de sessões e use o botão de terminal: copia o `claude --resume` |
 | Apagar uma sessão do Claude | Lixeira na sessão, aberta ou fechada. Confirma numa janela; encerra e apaga a conversa |
+| Achar sessões esquecidas em worktrees apagadas | Aparecem em "Precisa da sua atenção" e com a marca "pasta apagada". Encerre pela lixeira |
 | Ver todas as portas em uso | Sistema e limpeza → "Portas" |
 | Resolver conflito de porta | Aparece em "Precisa da sua atenção". Em Sistema e limpeza, "Copiar prompt" e cole no Claude Code do projeto |
 | Limpar os servidores das worktrees de feature | Sistema e limpeza → "Worktrees de …". Remova uma, as já removidas do git ou todas; os volumes só saem se marcar |

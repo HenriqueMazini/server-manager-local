@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { projectAction } from './api'
 import { projectColors } from './colors'
-import { GROUPS, SessionsList, StatusHelp, view, type View } from './components/ClaudeCard'
+import { GROUPS, placer, SessionsList, StatusHelp, view, type SessionsBy, type View } from './components/ClaudeCard'
 import { useTheme } from './theme'
 import { CreateServerModal } from './components/CreateServer'
 import { bytes } from './format'
@@ -16,6 +16,7 @@ import { SettingsModal } from './components/Settings'
 import { attentionItems, AttentionList, Kpis } from './components/Overview'
 import { MobileNav, Sidebar, type Badge } from './components/Nav'
 import { Search } from './components/Search'
+import { ProjectPicker } from './components/ProjectPicker'
 import { PAGES, usePage, type Page } from './pages'
 import { cx, Dot, Icon, Spinner, useToast } from './components/ui'
 import type { Project } from './types'
@@ -51,6 +52,22 @@ export default function App() {
   const alerts = useReplyAlerts(snap, () => go('sessoes'))
   const [projectFilter, setProjectFilter] = useState<ProjectFilter>('todos')
   const [sessionFilter, setSessionFilter] = useState<View['key'] | null>(null)
+  const [sessionProject, setSessionProject] = useState<string | null>(null)
+  const [sessionsBy, setSessionsBy] = useState<SessionsBy>(() => {
+    try {
+      return localStorage.getItem('sm-sessoes-por') === 'projeto' ? 'projeto' : 'status'
+    } catch {
+      return 'status'
+    }
+  })
+  const chooseSessionsBy = (by: SessionsBy) => {
+    setSessionsBy(by)
+    try {
+      localStorage.setItem('sm-sessoes-por', by)
+    } catch {
+      /* sem storage: vale só nesta aba */
+    }
+  }
   const [selected, setSelected] = useState<string | null>(() => {
     try {
       return localStorage.getItem('sm-selected')
@@ -161,8 +178,7 @@ export default function App() {
   const on = mainProjects.filter((p) => p.running > 0)
   const attention = snap ? attentionItems(snap, worktrees) : []
   const now = Date.now()
-  const sessionCount = (k: View['key']) => claude.sessions.filter((s) => view(s, now).key === k).length
-  const waiting = sessionCount('waiting') + sessionCount('reply')
+  const waiting = claude.sessions.filter((s) => !s.cwdGone && ['waiting', 'reply'].includes(view(s, now).key)).length
   const system = attention.filter((a) => a.page === 'sistema').length
   const maxMem = Math.max(0, ...mainProjects.map((p) => p.memUsed))
   const conflictOf = (key: string) => snap?.conflicts.find((c) => c.mover.projectKey === key || c.keeper?.projectKey === key)?.hostPort
@@ -351,7 +367,26 @@ export default function App() {
       </div>
     )
   } else if (page === 'sessoes') {
-    const filter = sessionFilter && sessionCount(sessionFilter) ? sessionFilter : null
+    // Projetos com sessões, abertas ou encerradas, para o seletor, em ordem alfabética.
+    const place = placer(projects)
+    const options = new Map<string, { label: string; open: number; closed: number }>()
+    for (const s of claude.sessions) {
+      const pl = place(s.cwd)
+      const o = options.get(pl.key) ?? { label: pl.label, open: 0, closed: 0 }
+      o.open++
+      options.set(pl.key, o)
+    }
+    for (const s of claude.closed ?? []) {
+      const pl = place(s.cwd)
+      const o = options.get(pl.key) ?? { label: pl.label, open: 0, closed: 0 }
+      o.closed++
+      options.set(pl.key, o)
+    }
+    const projectOptions = [...options.entries()].map(([key, o]) => ({ key, ...o })).sort((a, b) => a.label.localeCompare(b.label, 'pt-BR', { sensitivity: 'base', numeric: true }))
+    const proj = sessionProject && options.has(sessionProject) ? sessionProject : null
+    const scoped = proj ? claude.sessions.filter((s) => place(s.cwd).key === proj) : claude.sessions
+    const scopedCount = (k: View['key']) => scoped.filter((s) => view(s, now).key === k).length
+    const filter = sessionFilter && scopedCount(sessionFilter) ? sessionFilter : null
     const chip = (active: boolean) =>
       cx(
         'flex items-center gap-2 rounded-[10px] border px-3 py-2 text-[13px] text-fg transition-colors',
@@ -372,24 +407,46 @@ export default function App() {
           </span>
         </PageHeader>
         {error}
-        {claude.sessions.length > 0 && (
-          <div role="group" aria-label="Filtrar por status" className="flex flex-wrap gap-2">
-            <button type="button" aria-pressed={!filter} onClick={() => setSessionFilter(null)} className={chip(!filter)}>
-              <span className="size-2 rounded-full bg-fg" />
-              Todas
-              <span className="tabular font-mono text-xs text-faint">{claude.sessions.length}</span>
-            </button>
-            {GROUPS.map((g) => {
-              const n = sessionCount(g.key)
-              if (!n) return null
-              return (
-                <button key={g.key} type="button" aria-pressed={filter === g.key} onClick={() => setSessionFilter(filter === g.key ? null : g.key)} className={chip(filter === g.key)}>
-                  <Dot tone={g.tone} />
-                  {g.title}
-                  <span className="tabular font-mono text-xs text-faint">{n}</span>
+        {(claude.sessions.length > 0 || projectOptions.length > 0) && (
+          <div className="flex flex-wrap items-center gap-2">
+            <ProjectPicker value={proj} options={projectOptions} onChange={setSessionProject} />
+            <div role="group" aria-label="Agrupar sessões" className="flex rounded-[10px] border border-edge bg-surface p-[3px]">
+              {(
+                [
+                  ['status', 'Por status'],
+                  ['projeto', 'Por projeto'],
+                ] as const
+              ).map(([k, label]) => (
+                <button
+                  key={k}
+                  type="button"
+                  aria-pressed={sessionsBy === k}
+                  onClick={() => chooseSessionsBy(k)}
+                  className={cx('rounded-[7px] px-3 py-1.5 text-xs transition-colors', sessionsBy === k ? 'bg-raised font-medium text-fg' : 'text-muted hover:text-fg')}
+                >
+                  {label}
                 </button>
-              )
-            })}
+              ))}
+            </div>
+            <span aria-hidden className="mx-1 hidden h-6 w-px bg-line sm:block" />
+            <div role="group" aria-label="Filtrar por status" className="flex flex-wrap gap-2">
+              <button type="button" aria-pressed={!filter} onClick={() => setSessionFilter(null)} className={chip(!filter)}>
+                <span className="size-2 rounded-full bg-fg" />
+                Todas
+                <span className="tabular font-mono text-xs text-faint">{scoped.length}</span>
+              </button>
+              {GROUPS.map((g) => {
+                const n = scopedCount(g.key)
+                if (!n) return null
+                return (
+                  <button key={g.key} type="button" aria-pressed={filter === g.key} onClick={() => setSessionFilter(filter === g.key ? null : g.key)} className={chip(filter === g.key)}>
+                    <Dot tone={g.tone} />
+                    {g.title}
+                    <span className="tabular font-mono text-xs text-faint">{n}</span>
+                  </button>
+                )
+              })}
+            </div>
           </div>
         )}
         <SessionsList
@@ -398,6 +455,8 @@ export default function App() {
           onToggleMute={alerts.toggleMute}
           projects={projects}
           filter={filter ? [filter] : undefined}
+          by={sessionsBy}
+          project={proj ?? undefined}
         />
         {mobileFooter}
       </main>

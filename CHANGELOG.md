@@ -11,6 +11,25 @@ Anote cada mudança em **Não lançado** no mesmo commit que a faz. O script
 
 ## [Não lançado]
 
+### Adicionado
+- Sessões do Claude: escolha entre ver as sessões "Por status" ou "Por projeto". Por projeto, cada grupo
+  mostra quantas sessões há em cada status e a memória somada; cada linha diz o status. Sessões em
+  worktrees entram no projeto principal. A escolha fica salva no navegador.
+- Sessões do Claude: filtro por projeto, nas duas visões e nas encerradas. Os contadores dos status
+  passam a contar só o projeto escolhido.
+- Sessões do Claude com a pasta apagada (a worktree foi removida com a sessão aberta, ou o Docker
+  recriou a pasta como outro dono) ganham a marca "pasta apagada" e um item próprio em "Precisa da sua
+  atenção" para encerrar. Elas não contam mais como "aguardam você".
+- Seletor de projeto das sessões em lista própria, no tema do painel, separado em "Com sessões abertas"
+  e "Só encerradas".
+
+### Alterado
+- Sessões do Claude: dentro de cada status, da atualizada mais recentemente para a mais antiga (antes, pelo nome).
+
+### Corrigido
+- Sessão sem data aparecia como ociosa "há 739910 dias": a data vazia agora não vai no JSON e a sessão
+  mostra "sem data", no grupo das paradas.
+
 ## [2.1.0] - 2026-10-21
 
 ### Adicionado

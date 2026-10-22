@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"servermanager/internal/procfs"
@@ -26,11 +27,12 @@ type Session struct {
 	Cwd       string    `json:"cwd,omitempty"`
 	Status    string    `json:"status"` // busy | waiting | idle | unknown
 	Version   string    `json:"version,omitempty"`
-	StartedAt time.Time `json:"startedAt,omitempty"`
-	UpdatedAt time.Time `json:"updatedAt,omitempty"` // última mudança de estado registrada pelo Claude Code
-	MemUsed   uint64    `json:"memUsed"`             // sessão + processos filhos (MCP, comandos), em bytes
+	StartedAt time.Time `json:"startedAt,omitzero"`
+	UpdatedAt time.Time `json:"updatedAt,omitzero"` // última mudança de estado registrada pelo Claude Code
+	MemUsed   uint64    `json:"memUsed"`            // sessão + processos filhos (MCP, comandos), em bytes
 	Procs     int       `json:"procs"`
 	Children  []Child   `json:"children"`
+	CwdGone   bool      `json:"cwdGone,omitempty"` // a pasta da sessão foi apagada com ela aberta (ex.: worktree removida)
 }
 
 // Child é um processo filho que pesa na sessão.
@@ -85,6 +87,7 @@ func FromProcs(procs map[int]procfs.Proc, sessionsDir, home string) Summary {
 				s.Name = meta.Name
 			}
 			s.Cwd = shorten(meta.Cwd, home)
+			s.CwdGone = dirGone(meta.Cwd, home)
 			if meta.Status != "" {
 				s.Status = meta.Status
 			}
@@ -118,6 +121,32 @@ func FromProcs(procs map[int]procfs.Proc, sessionsDir, home string) Summary {
 	}
 	sortSessions(out.Sessions)
 	return out
+}
+
+// dirGone diz se a pasta da sessão foi apagada. Conta também a pasta recriada por outro dono: o Docker
+// recria como root a pasta de um volume quando a worktree some, e o processo continua na pasta antiga.
+// (O painel não pode ler /proc/<pid>/cwd de outro processo, que diria "(deleted)" direto.)
+// Só responde quando a pasta pessoal está visível; sem ela, não dá para distinguir apagada de invisível.
+func dirGone(dir, home string) bool {
+	if dir == "" || home == "" {
+		return false
+	}
+	h, err := os.Stat(home)
+	if err != nil {
+		return false
+	}
+	d, err := os.Stat(dir)
+	if err != nil {
+		return os.IsNotExist(err)
+	}
+	return owner(d) != owner(h)
+}
+
+func owner(fi os.FileInfo) int64 {
+	if st, ok := fi.Sys().(*syscall.Stat_t); ok {
+		return int64(st.Uid)
+	}
+	return -1
 }
 
 // sortSessions põe primeiro quem está trabalhando; dentro de cada grupo, a atualização mais recente.

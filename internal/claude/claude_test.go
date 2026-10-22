@@ -1,6 +1,7 @@
 package claude
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -153,5 +154,32 @@ func TestClosed(t *testing.T) {
 	got = Closed(filepath.Join(root, "projects"), "/home/u", nil)
 	if got[0].Name != "renomeada" || got[0].Cwd != "~/outra" {
 		t.Errorf("cache não releu o arquivo alterado: %+v", got[0])
+	}
+}
+
+func TestCwdGone(t *testing.T) {
+	home := t.TempDir()
+	viva := filepath.Join(home, "projetos", "loja")
+	must(t, os.MkdirAll(viva, 0o755))
+	if dirGone(viva, home) {
+		t.Error("pasta existente marcada como apagada")
+	}
+	if !dirGone(filepath.Join(home, "projetos", "loja-feature"), home) {
+		t.Error("pasta apagada não detectada")
+	}
+	// Sem a pasta pessoal visível, não afirma nada.
+	if dirGone("/nao/existe", filepath.Join(home, "sem-home")) {
+		t.Error("marcou como apagada sem enxergar a pasta pessoal")
+	}
+	if dirGone("", home) {
+		t.Error("pasta vazia marcada como apagada")
+	}
+}
+
+func TestSessionWithoutDates(t *testing.T) {
+	b, err := json.Marshal(Session{PID: 1, Name: "x"})
+	must(t, err)
+	if strings.Contains(string(b), "updatedAt") || strings.Contains(string(b), "startedAt") {
+		t.Errorf("datas vazias não devem ir no JSON: %s", b)
 	}
 }

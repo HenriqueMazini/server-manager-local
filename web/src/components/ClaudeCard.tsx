@@ -1,4 +1,4 @@
-import type { ClaudeSession, ClaudeSummary, ClosedSession } from '../types'
+import type { ClaudeSession, ClaudeSummary, ClosedSession, Project } from '../types'
 import { deleteClaudeSession, deleteClosedSession } from '../api'
 import { bytes, shortPath } from '../format'
 import { copyText, cx, Dot, Icon, useToast, type Tone } from './ui'
@@ -13,10 +13,16 @@ export const REPLY_MINUTES = 30 // saiu de trabalhando há até 30 min: aguardan
 
 export type View = { tone: Tone; label: string; key: 'busy' | 'waiting' | 'reply' | 'recent' | 'stale' | 'idle' }
 
+// Data em milissegundos, ou NaN quando falta ou é a data vazia (ano 1) que versões antigas do servidor mandavam.
+export function stamp(iso?: string): number {
+  const t = iso ? Date.parse(iso) : NaN
+  return t > Date.UTC(2000, 0, 1) ? t : NaN
+}
+
 export function view(s: ClaudeSession, now = Date.now()): View {
   if (s.status === 'busy') return { tone: 'on', label: 'trabalhando', key: 'busy' }
   if (s.status === 'waiting') return { tone: 'warn', label: 'aguardando você', key: 'waiting' }
-  const updated = s.updatedAt ? Date.parse(s.updatedAt) : NaN
+  const updated = stamp(s.updatedAt)
   if (Number.isNaN(updated)) return { tone: 'off', label: 'parada', key: 'stale' }
   const age = now - updated
   // O horário é o da última mudança de estado: parada há pouco = acabou de sair de trabalhando.
@@ -28,16 +34,7 @@ export function view(s: ClaudeSession, now = Date.now()): View {
 
 const toneText: Record<Tone, string> = { on: 'text-on-ink', warn: 'text-warn-ink', danger: 'text-danger', off: 'text-faint', info: 'text-info-ink' }
 
-// Ordem dos grupos: trabalhando, aguardando você, aguardando resposta, ociosa, parada, recente. Dentro de cada grupo, por nome.
-const groupOrder: Record<View['key'], number> = { busy: 0, waiting: 1, reply: 2, idle: 3, stale: 4, recent: 5 }
 const collator = new Intl.Collator('pt-BR', { sensitivity: 'base', numeric: true })
-
-export function sortSessions(sessions: ClaudeSession[], now = Date.now()): ClaudeSession[] {
-  return [...sessions].sort((a, b) => {
-    const g = groupOrder[view(a, now).key] - groupOrder[view(b, now).key]
-    return g || collator.compare(a.name, b.name) || a.pid - b.pid
-  })
-}
 
 function ago(iso?: string): string {
   if (!iso) return ''
@@ -72,8 +69,9 @@ const toneColor: Record<Tone, string> = { on: 'var(--on)', warn: 'var(--warn)', 
 // Há quanto tempo a sessão mudou de estado, em texto curto.
 function when(s: ClaudeSession): string {
   if (s.status === 'busy') return 'agora'
-  if (!s.updatedAt) return '—'
-  const m = Math.floor((Date.now() - Date.parse(s.updatedAt)) / 60000)
+  const t = stamp(s.updatedAt)
+  if (Number.isNaN(t)) return 'sem data'
+  const m = Math.floor((Date.now() - t) / 60000)
   if (!(m >= 1)) return 'agora'
   if (m < 60) return `há ${m} min`
   const h = Math.floor(m / 60)
@@ -118,34 +116,193 @@ export function StatusHelp() {
             </span>
           ))}
         </span>
-        <span className="mt-2.5 block border-t border-line pt-2 text-[11px] text-faint">A lista segue esta ordem e, dentro de cada grupo, o nome da sessão.</span>
+        <span className="mt-2.5 block border-t border-line pt-2 text-[11px] text-faint">A lista segue esta ordem e, dentro de cada status, da atualizada mais recentemente para a mais antiga.</span>
       </span>
     </span>
   )
 }
 
-// Sessões abertas agrupadas por status, com silenciar e apagar; as encerradas ficam recolhidas no fim.
+export type SessionsBy = 'status' | 'projeto'
+
+const square = 'grid size-8 shrink-0 place-items-center rounded-lg border border-edge transition-colors'
+const groupIndex = (k: View['key']) => GROUPS.findIndex((g) => g.key === k)
+// Dentro do mesmo status, a atualizada mais recentemente primeiro; empate, pelo nome.
+const recency = (s: ClaudeSession) => stamp(s.updatedAt) || stamp(s.startedAt) || 0
+const byTime = (a: ClaudeSession, b: ClaudeSession) => recency(b) - recency(a) || collator.compare(a.name, b.name) || a.pid - b.pid
+
+// Uma sessão aberta. Na visão por projeto, o status vira uma coluna.
+function SessionRow({
+  s,
+  v,
+  showStatus,
+  muted,
+  onToggleMute,
+  onDelete,
+}: {
+  s: ClaudeSession
+  v: View
+  showStatus?: boolean
+  muted?: Set<number>
+  onToggleMute?: (pid: number) => void
+  onDelete?: () => void
+}) {
+  const g = GROUPS[groupIndex(v.key)]
+  return (
+    <li
+      className="flex flex-wrap items-center gap-x-3.5 gap-y-2.5 border-t border-divider px-4 py-[13px] first:border-t-0"
+      style={{ boxShadow: `inset 3px 0 0 ${toneColor[g.tone]}` }}
+    >
+      <span className="min-w-0 flex-[1_1_260px]">
+        <span className="block truncate text-sm font-semibold">{s.name}</span>
+        <span className="mt-0.5 flex min-w-0 items-center gap-2">
+          <span
+            className={cx('truncate font-mono text-[11px] text-faint', s.cwdGone && 'line-through')}
+            title={`pid ${s.pid}${s.version ? ` · v${s.version}` : ''} · ${s.procs} ${s.procs === 1 ? 'processo' : 'processos'}`}
+          >
+            {s.cwd}
+          </span>
+          {s.cwdGone && (
+            <span
+              className="shrink-0 rounded-full bg-danger/10 px-2 py-px text-[11px] font-medium text-danger"
+              title="A pasta foi apagada com a sessão aberta (por exemplo, uma worktree removida). O Claude continua rodando sem lugar para trabalhar: encerre a sessão."
+            >
+              pasta apagada
+            </span>
+          )}
+        </span>
+      </span>
+      {showStatus && (
+        <span className={cx('flex w-[150px] items-center gap-2 text-xs', toneText[g.tone])}>
+          <Dot tone={g.tone} pulse={s.status === 'busy'} />
+          {g.title}
+        </span>
+      )}
+      <span className="w-[120px] text-xs text-muted">{when(s)}</span>
+      <span className="tabular w-16 text-right font-mono text-xs">{bytes(s.memUsed)}</span>
+      <span className="flex gap-1">
+        {muted && onToggleMute && (
+          <button
+            type="button"
+            onClick={() => onToggleMute(s.pid)}
+            aria-pressed={muted.has(s.pid)}
+            aria-label={muted.has(s.pid) ? `Reativar alertas de ${s.name}` : `Silenciar alertas de ${s.name}`}
+            title={muted.has(s.pid) ? 'Silenciada: sem alerta e som. Clique para reativar.' : 'Silenciar alerta e som desta sessão'}
+            className={cx(square, muted.has(s.pid) ? 'text-faint hover:text-fg' : 'text-muted hover:text-fg')}
+          >
+            <Icon name={muted.has(s.pid) ? 'bellOff' : 'bell'} className="size-3.5" />
+          </button>
+        )}
+        {onDelete && (
+          <button
+            type="button"
+            onClick={onDelete}
+            aria-label={`Encerrar e apagar a sessão ${s.name}`}
+            title="Encerrar e apagar esta sessão"
+            className={cx(square, 'text-muted hover:border-danger/40 hover:text-danger')}
+          >
+            <Icon name="trash" className="size-3.5" />
+          </button>
+        )}
+      </span>
+    </li>
+  )
+}
+
+// Sessões abertas agrupadas por status ou por projeto, com silenciar e apagar; as encerradas ficam recolhidas no fim.
 export function SessionsList({
   claude: c,
   muted,
   onToggleMute,
   projects = [],
   filter,
+  by = 'status',
+  project,
 }: {
   claude: ClaudeSummary
   muted?: Set<number> // ausente quando os alertas estão desligados nas configurações
   onToggleMute?: (pid: number) => void
-  projects?: { name: string; dir?: string }[]
-  filter?: View['key'][] // só estes grupos; sem filtro também mostra as encerradas
+  projects?: Project[]
+  filter?: View['key'][] // só estes status; sem filtro também mostra as encerradas
+  by?: SessionsBy
+  project?: string // chave de um projeto (de placer): só as sessões dele, abertas e encerradas
 }) {
   const [deleting, setDeleting] = useState<DeleteTarget | null>(null)
   const askDelete = (s: ClaudeSession) =>
     setDeleting({ name: s.name, cwd: s.cwd, open: true, working: s.status === 'busy', run: () => deleteClaudeSession(s.pid) })
   const now = Date.now()
-  const groups = GROUPS.filter((g) => !filter || filter.includes(g.key))
-    .map((g) => ({ ...g, items: sortSessions(c.sessions.filter((s) => view(s, now).key === g.key), now) }))
-    .filter((g) => g.items.length)
-  const square = 'grid size-8 shrink-0 place-items-center rounded-lg border border-edge transition-colors'
+  const place = placer(projects)
+  const inProject = (cwd?: string) => !project || place(cwd).key === project
+  const open = c.sessions
+    .filter((s) => inProject(s.cwd))
+    .map((s) => ({ s, v: view(s, now) }))
+    .filter(({ v }) => !filter || filter.includes(v.key))
+  const row = ({ s, v }: { s: ClaudeSession; v: View }, showStatus?: boolean) => (
+    <SessionRow
+      key={s.pid}
+      s={s}
+      v={v}
+      showStatus={showStatus}
+      muted={muted}
+      onToggleMute={onToggleMute}
+      onDelete={c.canDelete && s.id ? () => askDelete(s) : undefined}
+    />
+  )
+
+  let body
+  if (by === 'projeto') {
+    const map = new Map<string, Place & { items: typeof open }>()
+    for (const it of open) {
+      const pl = place(it.s.cwd)
+      const g = map.get(pl.key) ?? { ...pl, items: [] }
+      g.items.push(it)
+      map.set(pl.key, g)
+    }
+    // Dentro do projeto, por status e depois pelo tempo; os projetos com algo pedindo você vêm primeiro.
+    const groups = [...map.values()].map((g) => ({
+      ...g,
+      items: g.items.sort((a, b) => groupIndex(a.v.key) - groupIndex(b.v.key) || byTime(a.s, b.s)),
+    }))
+    groups.sort((a, b) => groupIndex(a.items[0].v.key) - groupIndex(b.items[0].v.key) || b.items.length - a.items.length || collator.compare(a.label, b.label))
+    body = groups.map((g) => {
+      const mem = g.items.reduce((n, it) => n + it.s.memUsed, 0)
+      return (
+        <section key={g.key} className="flex flex-col gap-2">
+          <h2 className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+            <span className="text-sm font-semibold">{g.label}</span>
+            {g.path !== g.label && <span className="truncate font-mono text-[11px] text-faint">{g.path}</span>}
+            <span className="ml-auto flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+              {GROUPS.map((st) => {
+                const n = g.items.filter((it) => it.v.key === st.key).length
+                return (
+                  n > 0 && (
+                    <span key={st.key} className={cx('flex items-center gap-1.5', toneText[st.tone])} title={st.title}>
+                      <Dot tone={st.tone} />
+                      {n} {st.title.toLowerCase()}
+                    </span>
+                  )
+                )
+              })}
+              <span className="tabular font-mono text-faint">{bytes(mem)}</span>
+            </span>
+          </h2>
+          <ul className="overflow-hidden rounded-[14px] border border-line bg-surface">{g.items.map((it) => row(it, true))}</ul>
+        </section>
+      )
+    })
+  } else {
+    body = GROUPS.map((g) => ({ ...g, items: open.filter((it) => it.v.key === g.key).sort((a, b) => byTime(a.s, b.s)) }))
+      .filter((g) => g.items.length)
+      .map((g) => (
+        <section key={g.key} className="flex flex-col gap-2">
+          <h2 className={cx('flex items-center gap-2 text-xs font-medium uppercase tracking-[0.1em]', toneText[g.tone])}>
+            {g.title}
+            {g.hint && <span className="normal-case tracking-normal text-faint">· {g.hint}</span>}
+          </h2>
+          <ul className="overflow-hidden rounded-[14px] border border-line bg-surface">{g.items.map((it) => row(it))}</ul>
+        </section>
+      ))
+  }
+
   return (
     <>
       {deleting && <ConfirmDeleteSession target={deleting} onClose={() => setDeleting(null)} />}
@@ -153,64 +310,16 @@ export function SessionsList({
         <p className="rounded-[14px] border border-line bg-surface px-5 py-6 text-sm text-faint">
           O painel não consegue ver os processos do computador. Suba o painel pelo docker-compose do projeto, que monta o /proc em modo somente leitura.
         </p>
-      ) : c.sessions.length === 0 ? (
-        <p className="rounded-[14px] border border-line bg-surface px-5 py-6 text-sm text-faint">Nenhuma sessão do Claude Code aberta agora.</p>
+      ) : open.length === 0 ? (
+        <p className="rounded-[14px] border border-line bg-surface px-5 py-6 text-sm text-faint">
+          {project || filter ? 'Nenhuma sessão aberta com este filtro.' : 'Nenhuma sessão do Claude Code aberta agora.'}
+        </p>
       ) : (
-        groups.map((g) => (
-          <section key={g.key} className="flex flex-col gap-2">
-            <h2 className={cx('flex items-center gap-2 text-xs font-medium uppercase tracking-[0.1em]', toneText[g.tone])}>
-              {g.title}
-              {g.hint && <span className="normal-case tracking-normal text-faint">· {g.hint}</span>}
-            </h2>
-            <ul className="overflow-hidden rounded-[14px] border border-line bg-surface">
-              {g.items.map((s) => (
-                <li
-                  key={s.pid}
-                  className="flex flex-wrap items-center gap-x-3.5 gap-y-2.5 border-t border-divider px-4 py-[13px] first:border-t-0"
-                  style={{ boxShadow: `inset 3px 0 0 ${toneColor[g.tone]}` }}
-                >
-                  <span className="min-w-0 flex-[1_1_260px]">
-                    <span className="block truncate text-sm font-semibold">{s.name}</span>
-                    <span className="mt-0.5 block truncate font-mono text-[11px] text-faint" title={`pid ${s.pid}${s.version ? ` · v${s.version}` : ''} · ${s.procs} ${s.procs === 1 ? 'processo' : 'processos'}`}>
-                      {s.cwd}
-                    </span>
-                  </span>
-                  <span className="w-[120px] text-xs text-muted">{when(s)}</span>
-                  <span className="tabular w-16 text-right font-mono text-xs">{bytes(s.memUsed)}</span>
-                  <span className="flex gap-1">
-                    {muted && onToggleMute && (
-                      <button
-                        type="button"
-                        onClick={() => onToggleMute(s.pid)}
-                        aria-pressed={muted.has(s.pid)}
-                        aria-label={muted.has(s.pid) ? `Reativar alertas de ${s.name}` : `Silenciar alertas de ${s.name}`}
-                        title={muted.has(s.pid) ? 'Silenciada: sem alerta e som. Clique para reativar.' : 'Silenciar alerta e som desta sessão'}
-                        className={cx(square, muted.has(s.pid) ? 'text-faint hover:text-fg' : 'text-muted hover:text-fg')}
-                      >
-                        <Icon name={muted.has(s.pid) ? 'bellOff' : 'bell'} className="size-3.5" />
-                      </button>
-                    )}
-                    {c.canDelete && s.id && (
-                      <button
-                        type="button"
-                        onClick={() => askDelete(s)}
-                        aria-label={`Encerrar e apagar a sessão ${s.name}`}
-                        title="Encerrar e apagar esta sessão"
-                        className={cx(square, 'text-muted hover:border-danger/40 hover:text-danger')}
-                      >
-                        <Icon name="trash" className="size-3.5" />
-                      </button>
-                    )}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ))
+        body
       )}
       {!filter && (
         <ClosedList
-          closed={c.closed ?? []}
+          closed={(c.closed ?? []).filter((x) => inProject(x.cwd))}
           projects={projects}
           canDelete={!!c.canDelete}
           onDelete={(x) => setDeleting({ name: x.name, cwd: x.cwd, open: false, working: false, run: () => deleteClosedSession(x.id) })}
@@ -229,22 +338,44 @@ function sizeText(b: number): string {
 
 type ClosedGroup = { key: string; label: string; path?: string; items: ClosedSession[] }
 
-// Agrupa por projeto: a pasta da conversa dentro da pasta de um projeto do painel usa o nome dele;
-// fora disso, o nome da pasta. Grupos pela conversa mais recente; dentro, da mais recente para a mais antiga.
-function groupClosed(closed: ClosedSession[], projects: { name: string; dir?: string }[]): ClosedGroup[] {
+export type Place = { key: string; label: string; path: string }
+
+// Projeto de uma pasta: a pasta de um projeto do painel (a mais específica ganha) ou, para uma worktree,
+// o projeto principal. Pasta irmã "<projeto>-algo" sem containers também conta como worktree dele.
+// Fora disso, o nome da própria pasta.
+export function placer(projects: Project[]): (cwd?: string) => Place {
   const dirs = projects
     .filter((p) => p.dir)
-    .map((p) => ({ name: p.name, dir: shortPath(p.dir).replace(/\/$/, '') }))
-    .sort((a, b) => b.dir.length - a.dir.length) // a pasta mais específica ganha
+    .map((p) => ({
+      name: p.worktree ? p.worktree.mainName : p.name,
+      main: shortPath(p.worktree ? p.worktree.mainDir : p.dir).replace(/\/$/, ''),
+      dir: shortPath(p.dir).replace(/\/$/, ''),
+    }))
+    .sort((a, b) => b.dir.length - a.dir.length)
+  const mains = dirs.filter((d) => d.dir === d.main)
+  return (raw) => {
+    const cwd = (raw ?? '').replace(/\/$/, '')
+    const hit = dirs.find((d) => cwd === d.dir || cwd.startsWith(d.dir + '/'))
+    if (hit) return { key: `p:${hit.main}`, label: hit.name, path: hit.main }
+    const sibling = mains.find((m) => {
+      const parent = m.main.slice(0, m.main.lastIndexOf('/'))
+      const base = m.main.slice(parent.length + 1)
+      return cwd.startsWith(`${parent}/${base}-`)
+    })
+    if (sibling) return { key: `p:${sibling.main}`, label: sibling.name, path: sibling.main }
+    return { key: `d:${cwd}`, label: cwd.split('/').filter(Boolean).pop() || 'sem pasta', path: cwd }
+  }
+}
+
+// Agrupa por projeto. Grupos pela conversa mais recente; dentro, da mais recente para a mais antiga.
+function groupClosed(closed: ClosedSession[], projects: Project[]): ClosedGroup[] {
+  const place = placer(projects)
   const groups = new Map<string, ClosedGroup>()
   for (const c of closed) {
-    const cwd = (c.cwd ?? '').replace(/\/$/, '')
-    const proj = dirs.find((d) => cwd === d.dir || cwd.startsWith(d.dir + '/'))
-    const key = proj ? `p:${proj.dir}` : `d:${cwd}`
-    const label = proj ? proj.name : cwd.split('/').filter(Boolean).pop() || 'sem pasta'
-    const g = groups.get(key) ?? { key, label, path: proj ? proj.dir : cwd, items: [] }
+    const pl = place(c.cwd)
+    const g = groups.get(pl.key) ?? { ...pl, items: [] }
     g.items.push(c)
-    groups.set(key, g)
+    groups.set(pl.key, g)
   }
   const byDate = (a: ClosedSession, b: ClosedSession) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt)
   const out = [...groups.values()]
@@ -260,7 +391,7 @@ function ClosedList({
   onDelete,
 }: {
   closed: ClosedSession[]
-  projects: { name: string; dir?: string }[]
+  projects: Project[]
   canDelete: boolean
   onDelete: (c: ClosedSession) => void
 }) {

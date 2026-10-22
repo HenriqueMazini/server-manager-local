@@ -19,7 +19,9 @@ export type Attention = {
 // Tudo que pede uma ação, numa lista só: sessões esperando, conflitos de porta e sobras para limpar.
 export function attentionItems(snap: Snapshot, worktrees: Project[]): Attention[] {
   const out: Attention[] = []
-  const waiting = (snap.claude?.sessions ?? []).filter((s) => ['waiting', 'reply'].includes(view(s).key))
+  const sessions = snap.claude?.sessions ?? []
+  // Sessão cuja pasta foi apagada não está esperando ninguém: vira um item próprio, para encerrar.
+  const waiting = sessions.filter((s) => !s.cwdGone && ['waiting', 'reply'].includes(view(s).key))
   if (waiting.length) {
     out.push({
       key: 'sessions',
@@ -28,6 +30,19 @@ export function attentionItems(snap: Snapshot, worktrees: Project[]): Attention[
       title: waiting.length === 1 ? '1 sessão aguarda você' : `${waiting.length} sessões aguardam você`,
       detail: waiting.map((s) => s.name).join(' · '),
       action: 'Ver sessões',
+      page: 'sessoes',
+    })
+  }
+  const gone = sessions.filter((s) => s.cwdGone)
+  if (gone.length) {
+    const mem = gone.reduce((n, s) => n + s.memUsed, 0)
+    out.push({
+      key: 'sessions-gone',
+      tone: 'danger',
+      icon: 'trash',
+      title: gone.length === 1 ? '1 sessão do Claude com a pasta apagada' : `${gone.length} sessões do Claude com a pasta apagada`,
+      detail: `${gone.map((s) => s.name).join(' · ')} · ${bytes(mem)}`,
+      action: 'Encerrar',
       page: 'sessoes',
     })
   }
@@ -180,7 +195,7 @@ export function Kpis({
   const on = projects.filter((p) => p.running > 0)
   const count = (keys: string[]) => claude.sessions.filter((s) => keys.includes(view(s).key)).length
   const busy = count(['busy'])
-  const waiting = count(['waiting', 'reply'])
+  const waiting = claude.sessions.filter((s) => !s.cwdGone && ['waiting', 'reply'].includes(view(s).key)).length
   return (
     <>
       {/* Celular: só os dois números de memória. */}
