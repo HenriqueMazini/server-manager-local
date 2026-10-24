@@ -11,6 +11,8 @@ Anote cada mudança em **Não lançado** no mesmo commit que a faz. O script
 
 ## [Não lançado]
 
+## [2.3.0] - 2026-10-24
+
 ### Adicionado
 - Servidores de desenvolvimento rodando fora do Docker (um `npm run dev` iniciado direto no computador)
   agora aparecem: o painel acha o projeto e a worktree pela linha de comando e soma a memória no quadro
@@ -241,7 +243,8 @@ Primeira versão estável: projetos, sessões do Claude, memória, portas e aler
 - Inventário e conflitos de porta, com prompt para o Claude Code.
 - Guia `docs/ADICIONAR-PROJETO.md`.
 
-[Não lançado]: https://github.com/HenriqueMazini/server-manager-local/compare/v2.2.0...HEAD
+[Não lançado]: https://github.com/HenriqueMazini/server-manager-local/compare/v2.3.0...HEAD
+[2.3.0]: https://github.com/HenriqueMazini/server-manager-local/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/HenriqueMazini/server-manager-local/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/HenriqueMazini/server-manager-local/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/HenriqueMazini/server-manager-local/compare/v1.5.0...v2.0.0
