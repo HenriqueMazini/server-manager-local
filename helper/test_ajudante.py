@@ -109,5 +109,59 @@ class Ajudante(unittest.TestCase):
             p.kill()
 
 
+class EncerrarServidor(unittest.TestCase):
+    """Servidor de desenvolvimento esquecido: um processo com filho, rodando dentro de ~/projetos."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.projetos = self.tmp / "projetos"
+        (self.projetos / "loja").mkdir(parents=True)
+        os.environ["AJUDANTE_PROJETOS"] = str(self.projetos)
+        self.m = load(self.tmp / "home", Path("/proc"))
+
+    def tearDown(self):
+        os.environ.pop("AJUDANTE_PROJETOS", None)
+
+    def server(self, cwd):
+        code = "import subprocess, time; subprocess.Popen(['sleep', '60']); time.sleep(60)"
+        p = subprocess.Popen([sys.executable, "-c", code], cwd=cwd)
+        time.sleep(0.3)
+        self.addCleanup(lambda: (p.kill(), p.wait()))
+        return p
+
+    def start(self, pid):
+        stat = Path(f"/proc/{pid}/stat").read_text()
+        return stat[stat.rindex(")") + 2 :].split()[19]
+
+    def test_encerra_o_processo_e_os_filhos(self):
+        p = self.server(self.projetos / "loja")
+        kids = self.m.descendants(p.pid)
+        self.assertEqual(len(kids), 1)
+        res = self.m.handle(json.dumps({"acao": "encerrar-processo", "pid": p.pid, "inicio": self.start(p.pid)}))
+        self.assertTrue(res["ok"], res)
+        self.assertEqual(res["encerrados"], 2)
+        p.wait(timeout=5)
+        time.sleep(0.2)
+        self.assertIsNone(self.m.proc_start(kids[0])[0], "o filho também precisa sair")
+
+    def test_recusa_pid_reaproveitado(self):
+        p = self.server(self.projetos / "loja")
+        res = self.m.handle(json.dumps({"acao": "encerrar-processo", "pid": p.pid, "inicio": "1"}))
+        self.assertFalse(res["ok"])
+        self.assertIsNone(p.poll())
+
+    def test_recusa_fora_de_projetos(self):
+        p = self.server(self.tmp)
+        res = self.m.handle(json.dumps({"acao": "encerrar-processo", "pid": p.pid, "inicio": self.start(p.pid)}))
+        self.assertFalse(res["ok"])
+        self.assertIn("projetos", res["erro"])
+        self.assertIsNone(p.poll())
+
+    def test_recusa_pedido_incompleto(self):
+        for req in [{"pid": 1, "inicio": "1"}, {"pid": "x", "inicio": "1"}, {"pid": os.getpid()}]:
+            res = self.m.handle(json.dumps({"acao": "encerrar-processo", **req}))
+            self.assertFalse(res["ok"], req)
+
+
 if __name__ == "__main__":
     unittest.main()

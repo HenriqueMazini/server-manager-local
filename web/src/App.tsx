@@ -16,6 +16,7 @@ import { SettingsModal } from './components/Settings'
 import { attentionItems, AttentionList, Kpis } from './components/Overview'
 import { MobileNav, Sidebar, type Badge } from './components/Nav'
 import { Search } from './components/Search'
+import { DevRunsCard, DevRunsSummary } from './components/DevRuns'
 import { ProjectPicker } from './components/ProjectPicker'
 import { PAGES, usePage, type Page } from './pages'
 import { cx, Dot, Icon, Spinner, useToast } from './components/ui'
@@ -173,7 +174,8 @@ export default function App() {
   const worktrees = projects.filter((p) => p.worktree && !mainProjects.includes(p))
   const colors = useMemo(() => projectColors(mainProjects), [mainProjects])
   const claude = snap?.claude ?? { available: false, sessions: [], memUsed: 0 }
-  const memItems = useMemo(() => memoryItems(projects, claude), [projects, claude])
+  const devRuns = useMemo(() => snap?.devRuns ?? [], [snap])
+  const memItems = useMemo(() => memoryItems(projects, claude, devRuns, colors), [projects, claude, devRuns, colors])
   const devMem = memItems.reduce((n, p) => n + p.memUsed, 0)
   const on = mainProjects.filter((p) => p.running > 0)
   const attention = snap ? attentionItems(snap, worktrees) : []
@@ -244,7 +246,7 @@ export default function App() {
 
   const shownProjects = mainProjects.filter((p) => (projectFilter === 'todos' ? true : projectFilter === 'ligados' ? p.running > 0 : p.running === 0))
   const withWorktrees = mainProjects.filter((m) => worktreesOf(m).length > 0)
-  const nothingToClean = !snap?.conflicts.length && !withWorktrees.length && !(snap?.orphans ?? []).length
+  const nothingToClean = !snap?.conflicts.length && !withWorktrees.length && !(snap?.orphans ?? []).length && !devRuns.length
   const main = 'flex min-w-0 flex-col gap-5 px-4 pb-10 pt-[18px] sm:gap-[22px] sm:px-8 sm:pt-6'
 
   let content: ReactNode
@@ -273,7 +275,7 @@ export default function App() {
             <MemoryBreakdown items={memItems} colors={colors} history={history} />
           </div>
           <div className="hidden min-w-0 flex-[2_1_280px] sm:flex">
-            <ComputerBreakdown host={snap.host} apps={snap.apps ?? []} />
+            <ComputerBreakdown host={snap.host} apps={snap.apps ?? []} devRuns={devRuns} />
           </div>
         </div>
         <section aria-labelledby="on-title" className="overflow-hidden rounded-[14px] border border-line bg-surface">
@@ -347,6 +349,7 @@ export default function App() {
                   />
                   {p.key === selected && <div className="border-t border-line bg-panel lg:hidden">{panel}</div>}
                   {worktreesOf(p).length > 0 && <WorktreeSummary items={worktreesOf(p)} onManage={() => go('sistema')} />}
+                  {devRuns.some((r) => r.projectKey === p.key) && <DevRunsSummary runs={devRuns.filter((r) => r.projectKey === p.key)} onManage={() => go('sistema')} />}
                 </div>
               ))}
             </div>
@@ -483,6 +486,7 @@ export default function App() {
             {withWorktrees.map((m) => (
               <WorktreeCleanup key={m.key} main={m.name} items={worktreesOf(m)} />
             ))}
+            <DevRunsCard runs={devRuns} canStop={!!claude.canDelete} />
             <OrphansCard orphans={snap.orphans ?? []} />
             <TemporariesNote items={snap.temporary ?? []} />
           </section>

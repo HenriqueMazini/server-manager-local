@@ -123,3 +123,11 @@ export async function removeWorktrees(keys: string[], volumes: boolean): Promise
   if (!res.ok) throw new Error(body.error ?? `Falha (${res.status})`)
   return body.results ?? []
 }
+
+// Encerra um servidor de desenvolvimento rodando fora do Docker (e os filhos), pelo ajudante da máquina.
+export async function stopDevRun(pid: number): Promise<{ stopped: number; memUsed: number }> {
+  const res = await fetch(`/api/devruns/${pid}/stop`, { method: 'POST', headers: ACTION_HEADER })
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(body.error ?? `Falha (${res.status})`)
+  return body
+}

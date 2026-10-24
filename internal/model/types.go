@@ -171,5 +171,21 @@ type Snapshot struct {
 	Claude    claude.Summary `json:"claude"`
 	Apps      []procfs.App   `json:"apps"`
 	Orphans   []Orphan       `json:"orphans"`
-	Temporary []Temporary    `json:"temporary"` // ocultos da lista de projetos // sobras de apps renomeados, para remover // aplicativos que mais usam memória na máquina
+	Temporary []Temporary    `json:"temporary"` // ocultos da lista de projetos
+	DevRuns   []DevRun       `json:"devRuns"`   // servidores de desenvolvimento rodando fora do Docker
+}
+
+// DevRun é um servidor de desenvolvimento rodando direto no computador, fora do Docker: o processo que foi iniciado (npm run dev) e tudo abaixo dele.
+type DevRun struct {
+	PID         int      `json:"pid"`
+	Start       string   `json:"start"`                // início do processo, para o ajudante conferir o pid
+	Command     string   `json:"command"`              // o que foi iniciado, curto ("next dev --webpack")
+	Dir         string   `json:"dir"`                  // pasta de onde veio (~/projetos/loja-wt/feature)
+	ProjectKey  string   `json:"projectKey,omitempty"` // projeto do painel, quando reconhecido
+	ProjectName string   `json:"projectName"`          // nome do projeto, ou da pasta
+	Worktree    string   `json:"worktree,omitempty"`   // nome da worktree, quando vem de uma
+	MemUsed     uint64   `json:"memUsed"`              // soma do processo e de todos os filhos
+	Procs       int      `json:"procs"`
+	Orphan      bool     `json:"orphan"` // quem iniciou já fechou: o processo ficou pendurado no systemd
+	Programs    []string `json:"programs"`
 }

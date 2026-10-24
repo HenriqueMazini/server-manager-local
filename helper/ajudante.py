@@ -12,9 +12,18 @@ Conferências antes de agir:
     a mesma conversa, com o mesmo horário de início (PID reaproveitado não passa);
   - todo caminho apagado fica dentro de ~/.claude.
 
+Também encerra um servidor de desenvolvimento rodando fora do Docker (npm run dev esquecido),
+com o processo e todos os filhos. Conferências:
+  - o horário de início confere com o que o painel viu (PID reaproveitado não passa);
+  - o processo é do mesmo usuário, não roda num container nem é um serviço do systemd;
+  - não é uma sessão do Claude, um shell de terminal nem o systemd;
+  - a pasta do processo ou um caminho da linha de comando fica dentro de ~/projetos.
+
 Protocolo: uma linha JSON por pedido, uma linha JSON de resposta.
   {"acao": "apagar-sessao", "id": "<uuid>", "pid": 1234}
   {"ok": true, "encerrou": true, "apagados": ["projects/.../<id>.jsonl", ...]}
+  {"acao": "encerrar-processo", "pid": 1234, "inicio": "<campo 22 do stat>"}
+  {"ok": true, "encerrados": 4}
 """
 import json
 import os
@@ -29,6 +38,7 @@ from pathlib import Path
 HOME = Path(os.environ.get("AJUDANTE_HOME", str(Path.home())))
 CLAUDE = HOME / ".claude"
 PROC = Path(os.environ.get("AJUDANTE_PROC", "/proc"))
+PROJETOS = Path(os.environ.get("AJUDANTE_PROJETOS", str(HOME / "projetos")))
 UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 LOG = HOME / ".local" / "state" / "server-manager" / "ajudante.log"
 
@@ -116,10 +126,93 @@ def delete_session(session_id: str, pid=None) -> dict:
     return {"ok": True, "encerrou": stopped, "apagados": removed}
 
 
+NAO_ENCERRAR = {"claude", "systemd", "init", "tmux: server", "sshd", "login"}
+SHELLS = {"bash", "sh", "zsh", "dash", "fish"}
+
+
+def inside_projetos(p: str) -> bool:
+    try:
+        real = Path(p).resolve()
+    except (OSError, ValueError):
+        return False
+    root = PROJETOS.resolve()
+    return real != root and root in real.parents
+
+
+def descendants(pid: int) -> list:
+    """Todos os processos abaixo de pid, lidos do /proc agora."""
+    kids = {}
+    for d in PROC.iterdir():
+        if not d.name.isdigit():
+            continue
+        try:
+            stat = (d / "stat").read_text()
+            ppid = int(stat[stat.rindex(")") + 2 :].split()[1])
+        except (OSError, ValueError, IndexError):
+            continue
+        kids.setdefault(ppid, []).append(int(d.name))
+    out, stack = [], [pid]
+    while stack:
+        for c in kids.get(stack.pop(), []):
+            out.append(c)
+            stack.append(c)
+    return out
+
+
+def stop_process(pid, start) -> dict:
+    if not isinstance(pid, int) or pid <= 1 or not start:
+        raise Recusado("pedido sem pid ou início do processo")
+    comm, real_start = proc_start(pid)
+    if comm is None:
+        raise Recusado("o processo já foi encerrado")
+    if real_start != str(start):
+        raise Recusado("o pid foi reaproveitado por outro processo")
+    d = PROC / str(pid)
+    if d.stat().st_uid != os.getuid():
+        raise Recusado("o processo é de outro usuário")
+    argv = [a for a in (d / "cmdline").read_bytes().decode("utf-8", "replace").split("\0") if a]
+    if comm in NAO_ENCERRAR or (comm in SHELLS and (len(argv) < 2 or argv[1] != "-c")):
+        raise Recusado(f"recusado: {comm} não é um servidor de desenvolvimento")
+    cgroup = (d / "cgroup").read_text()
+    if any(m in cgroup for m in ("docker-", "/docker/", "containerd", "libpod-")):
+        raise Recusado("o processo roda num container: use o painel para desligar o projeto")
+    if cgroup.strip().endswith(".service"):
+        raise Recusado("o processo é um serviço do systemd")
+    try:
+        cwd = os.readlink(d / "cwd")
+    except OSError:
+        cwd = ""
+    if not inside_projetos(cwd) and not any(a.startswith("/") and inside_projetos(a) for a in argv):
+        raise Recusado(f"o processo não é de uma pasta dentro de {PROJETOS}")
+    alvo = [pid] + descendants(pid)
+    for p in alvo:
+        try:
+            os.kill(p, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+    for _ in range(50):  # até 5 s para fecharem sozinhos
+        vivos = [p for p in alvo if proc_start(p)[0] is not None]
+        if not vivos:
+            break
+        time.sleep(0.1)
+    else:
+        for p in vivos:
+            try:
+                os.kill(p, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+    return {"ok": True, "encerrados": len(alvo)}
+
+
 def handle(line: str) -> dict:
     try:
         req = json.loads(line)
-        if req.get("acao") != "apagar-sessao":
+        acao = req.get("acao")
+        if acao == "encerrar-processo":
+            res = stop_process(req.get("pid"), req.get("inicio"))
+            log(f"encerrado servidor pid {req.get('pid')}: {res['encerrados']} processos")
+            return res
+        if acao != "apagar-sessao":
             raise Recusado("ação desconhecida")
         res = delete_session(req.get("id", ""), req.get("pid"))
         log(f"apagada {req.get('id')} (pid {req.get('pid')}): {len(res['apagados'])} itens")

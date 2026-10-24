@@ -3,13 +3,14 @@ import type { ClaudeSummary, HostMem, Project, Snapshot } from '../types'
 import type { Page } from '../pages'
 import { bytes, bytesParts, percent } from '../format'
 import { StackBar, type MemoryItem } from './Memory'
+import { devGroups } from './DevRuns'
 import { view } from './ClaudeCard'
 import { cx, Dot, Icon, type Tone } from './ui'
 
 export type Attention = {
   key: string
   tone: Tone
-  icon: 'bell' | 'alert' | 'branch' | 'trash'
+  icon: 'bell' | 'alert' | 'branch' | 'trash' | 'terminal'
   title: string
   detail: string
   action: string
@@ -69,6 +70,18 @@ export function attentionItems(snap: Snapshot, worktrees: Project[]): Attention[
       title: `${items.length} ${items.length === 1 ? 'worktree' : 'worktrees'} de ${main} já ${items.length === 1 ? 'removida' : 'removidas'} do git`,
       detail: `${containers} containers ainda existem${mem > 0 ? ` e ocupam ${bytes(mem)}` : ''}`,
       action: 'Limpar',
+      page: 'sistema',
+    })
+  }
+  // Servidor fora do Docker sem terminal: alguém fechou o terminal e ele continuou ocupando memória.
+  for (const g of devGroups((snap.devRuns ?? []).filter((r) => r.orphan))) {
+    out.push({
+      key: `dev:${g.key}`,
+      tone: 'danger',
+      icon: 'terminal',
+      title: `${g.label} rodando fora do painel, sem terminal`,
+      detail: `${g.runs.map((r) => r.command).join(' · ')} · ${bytes(g.memUsed)}`,
+      action: 'Encerrar',
       page: 'sistema',
     })
   }

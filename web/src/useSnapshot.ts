@@ -17,7 +17,7 @@ export function useSnapshot() {
       const s: Snapshot = JSON.parse((e as MessageEvent).data)
       setSnap(s)
       setConnection('live')
-      const dev = s.projects.reduce((n, p) => n + p.memUsed, 0) + (s.claude?.memUsed ?? 0)
+      const dev = s.projects.reduce((n, p) => n + p.memUsed, 0) + (s.claude?.memUsed ?? 0) + (s.devRuns ?? []).reduce((n, r) => n + r.memUsed, 0)
       setHistory((h) => {
         const t = Date.parse(s.at)
         if (h.length && h[h.length - 1].t === t) return h

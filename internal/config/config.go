@@ -59,6 +59,14 @@ func Parse(b []byte) (Config, error) {
 // No container vem de SM_HOST_HOME; fora do Docker, é a home de quem roda o painel.
 var HostHome = hostHome()
 
+// ProjectsRoot é a pasta onde ficam os projetos: SM_PROJECTS_ROOT ou ~/projetos. O painel só lê e nunca a cria.
+func ProjectsRoot() string {
+	if v := os.Getenv("SM_PROJECTS_ROOT"); v != "" {
+		return filepath.Clean(v)
+	}
+	return filepath.Join(HostHome, "projetos")
+}
+
 func hostHome() string {
 	if v := os.Getenv("SM_HOST_HOME"); v != "" {
 		return v

@@ -11,6 +11,7 @@ import (
 
 	"servermanager/internal/claude"
 	"servermanager/internal/config"
+	"servermanager/internal/devprocs"
 	"servermanager/internal/dockerx"
 	"servermanager/internal/hostinfo"
 	"servermanager/internal/labels"
@@ -188,6 +189,7 @@ func (s *Store) tick(ctx context.Context) {
 		snap.Claude.Closed = claude.Closed(filepath.Join(config.HostHome, ".claude", "projects"), config.HostHome, open)
 	}
 	snap.Apps = procfs.TopApps(procs, TopAppsCount)
+	snap.DevRuns = devprocs.Find(procs, snap.Projects, config.ProjectsRoot(), config.HostHome)
 	if snap.Projects == nil {
 		snap.Projects = []model.Project{}
 	}

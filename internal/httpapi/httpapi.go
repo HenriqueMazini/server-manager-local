@@ -9,9 +9,7 @@ import (
 	"io/fs"
 	"net"
 	"net/http"
-	"os"
 	"path"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -22,6 +20,7 @@ import (
 	"servermanager/internal/control"
 	"servermanager/internal/dockerx"
 	"servermanager/internal/labels"
+	"servermanager/internal/model"
 	"servermanager/internal/projects"
 	"servermanager/internal/state"
 	"servermanager/internal/version"
@@ -47,6 +46,7 @@ func Handler(st *state.Store, dc *dockerx.Client, lb *labels.Store, web fs.FS) h
 	mux.HandleFunc("POST /api/worktrees/remove", a.removeWorktrees)
 	mux.HandleFunc("POST /api/claude/sessions/{pid}/delete", a.deleteSession)
 	mux.HandleFunc("POST /api/claude/closed/{id}/delete", a.deleteClosed)
+	mux.HandleFunc("POST /api/devruns/{pid}/stop", a.stopDevRun)
 	mux.HandleFunc("POST /api/projects/{key}/{action}", a.projectAction)
 	mux.HandleFunc("GET /api/containers/{id}/logs", a.logs)
 	mux.HandleFunc("POST /api/analyze", a.analyze)
@@ -177,15 +177,8 @@ func (a *api) projectAction(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"results": results})
 }
 
-// ProjectsRoot é a pasta onde ficam os projetos. Padrão: ~/projetos. O painel só lê e nunca a cria.
-var ProjectsRoot = projectsRoot()
-
-func projectsRoot() string {
-	if v := os.Getenv("SM_PROJECTS_ROOT"); v != "" {
-		return filepath.Clean(v)
-	}
-	return filepath.Join(config.HostHome, "projetos")
-}
+// ProjectsRoot é a pasta onde ficam os projetos (veja config.ProjectsRoot).
+var ProjectsRoot = config.ProjectsRoot()
 
 func (a *api) analyze(w http.ResponseWriter, r *http.Request) {
 	var body struct {
@@ -237,6 +230,39 @@ func (a *api) deleteSession(w http.ResponseWriter, r *http.Request) {
 	}
 	a.st.Poke()
 	writeJSON(w, http.StatusOK, map[string]any{"name": sess.Name, "stopped": res.Stopped, "removed": len(res.Removed)})
+}
+
+// stopDevRun encerra um servidor de desenvolvimento rodando fora do Docker, pelo ajudante da máquina.
+// Só aceita um processo que está na lista do servidor; o início do processo vem dela, não do navegador,
+// e o ajudante confere tudo de novo do lado do computador.
+func (a *api) stopDevRun(w http.ResponseWriter, r *http.Request) {
+	pid, err := strconv.Atoi(r.PathValue("pid"))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "pid inválido"})
+		return
+	}
+	var run *model.DevRun
+	snap := a.st.Snapshot()
+	for i := range snap.DevRuns {
+		if snap.DevRuns[i].PID == pid {
+			run = &snap.DevRuns[i]
+		}
+	}
+	if run == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "servidor não encontrado: talvez já tenha sido encerrado"})
+		return
+	}
+	res, err := claude.StopProcess(state.HelperSocket, run.PID, run.Start)
+	if errors.Is(err, claude.ErrNoHelper) {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": err.Error()})
+		return
+	}
+	if err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+		return
+	}
+	a.st.Poke()
+	writeJSON(w, http.StatusOK, map[string]any{"stopped": res.Stopped, "memUsed": run.MemUsed})
 }
 
 // deleteClosed apaga uma conversa fechada. Só aceita IDs que estão na lista de fechadas do servidor.

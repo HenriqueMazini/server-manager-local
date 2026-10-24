@@ -124,11 +124,26 @@ export type ClosedSession = { id: string; name: string; cwd?: string; updatedAt:
 
 export type ClaudeSummary = { available: boolean; canDelete?: boolean; sessions: ClaudeSession[]; closed?: ClosedSession[]; memUsed: number }
 
-export type HostApp = { name: string; memUsed: number; procs: number }
+export type HostApp = { name: string; memUsed: number; procs: number; inContainers?: number }
 
 export type Temporary = { name: string; image: string; origin: 'testcontainers' | '--rm'; running: boolean }
 
 export type Orphan = { id: string; name: string; project: string; app: string; running: boolean; status: string }
+
+// Servidor de desenvolvimento rodando direto no computador, fora do Docker (npm run dev esquecido).
+export type DevRun = {
+  pid: number
+  start: string
+  command: string
+  dir: string
+  projectKey?: string
+  projectName: string
+  worktree?: string
+  memUsed: number
+  procs: number
+  orphan: boolean // quem iniciou já fechou: ficou pendurado no systemd
+  programs: string[]
+}
 
 export type Snapshot = {
   at: string
@@ -143,4 +158,5 @@ export type Snapshot = {
   apps: HostApp[]
   orphans: Orphan[]
   temporary?: Temporary[]
+  devRuns?: DevRun[]
 }

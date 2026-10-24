@@ -11,6 +11,18 @@ Anote cada mudança em **Não lançado** no mesmo commit que a faz. O script
 
 ## [Não lançado]
 
+### Adicionado
+- Servidores de desenvolvimento rodando fora do Docker (um `npm run dev` iniciado direto no computador)
+  agora aparecem: o painel acha o projeto e a worktree pela linha de comando e soma a memória no quadro
+  de desenvolvimento, com a marca "fora do painel". Na tabela de projetos, uma linha embaixo do projeto
+  mostra o que roda dele fora do Docker.
+- Sistema e limpeza: cartão "Rodando fora do painel", com cada servidor, se ainda está num terminal ou
+  ficou "sem terminal" (quem iniciou fechou), e o botão de encerrar, com confirmação. Quem encerra é o
+  ajudante da máquina, que confere de novo o processo, o dono e a pasta dentro de ~/projetos.
+- Servidor fora do Docker sem terminal entra em "Precisa da sua atenção".
+- Quadro "Quem ocupa memória · computador": cada aplicativo mostra a parte direto no computador e a parte
+  em containers (que já aparece nos projetos), e quais servidores fora do painel ele inclui.
+
 ## [2.2.0] - 2026-10-21
 
 ### Adicionado

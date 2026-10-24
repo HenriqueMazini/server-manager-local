@@ -17,6 +17,10 @@ type Proc struct {
 	Start string // início do processo, em ticks desde o boot (campo 22 do stat)
 	RSS   uint64 // memória residente, em bytes
 	Argv  []string
+	// Container diz se o processo roda dentro de um container (Docker, containerd, Podman), pelo cgroup.
+	Container bool
+	// Unit é a última parte do cgroup: "app-x.scope" (aberto num terminal) ou "y.service" (serviço do systemd).
+	Unit string
 }
 
 // Args é a linha de comando com espaços.
@@ -50,9 +54,26 @@ func Scan(root string) map[int]Proc {
 				}
 			}
 		}
+		if b, err := os.ReadFile(filepath.Join(dir, "cgroup")); err == nil {
+			cg := strings.TrimSpace(string(b))
+			p.Container = InContainer(cg)
+			if i := strings.LastIndexByte(cg, '/'); i >= 0 {
+				p.Unit = cg[i+1:]
+			}
+		}
 		out[pid] = p
 	}
 	return out
+}
+
+// InContainer diz, pelo conteúdo de /proc/<pid>/cgroup, se o processo roda num container.
+func InContainer(cgroup string) bool {
+	for _, mark := range []string{"docker-", "/docker/", "containerd", "libpod-", "/kubepods"} {
+		if strings.Contains(cgroup, mark) {
+			return true
+		}
+	}
+	return false
 }
 
 func readStat(dir string, pid int) (Proc, bool) {

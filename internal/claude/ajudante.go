@@ -29,29 +29,50 @@ type DeleteResult struct {
 
 // Delete pede ao ajudante para encerrar a sessão (se aberta) e apagar a conversa.
 func Delete(sock, sessionID string, pid int) (DeleteResult, error) {
+	var res DeleteResult
+	err := call(sock, map[string]any{"acao": "apagar-sessao", "id": sessionID, "pid": pid}, &res)
+	if err == nil && !res.OK {
+		err = errors.New(res.Error)
+	}
+	return res, err
+}
+
+// StopResult é a resposta do ajudante ao encerrar um servidor de desenvolvimento.
+type StopResult struct {
+	OK      bool   `json:"ok"`
+	Stopped int    `json:"encerrados"`
+	Error   string `json:"erro,omitempty"`
+}
+
+// StopProcess pede ao ajudante para encerrar um servidor de desenvolvimento rodando fora do Docker
+// (o processo e todos os filhos). start é o início do processo, para não acertar um pid reaproveitado.
+func StopProcess(sock string, pid int, start string) (StopResult, error) {
+	var res StopResult
+	err := call(sock, map[string]any{"acao": "encerrar-processo", "pid": pid, "inicio": start}, &res)
+	if err == nil && !res.OK {
+		err = errors.New(res.Error)
+	}
+	return res, err
+}
+
+// call manda um pedido ao ajudante e lê a resposta, uma linha JSON cada.
+func call(sock string, req, out any) error {
 	if !HelperAvailable(sock) {
-		return DeleteResult{}, ErrNoHelper
+		return ErrNoHelper
 	}
 	conn, err := net.DialTimeout("unix", sock, 3*time.Second)
 	if err != nil {
-		return DeleteResult{}, fmt.Errorf("%w (%v)", ErrNoHelper, err)
+		return fmt.Errorf("%w (%v)", ErrNoHelper, err)
 	}
 	defer conn.Close()
 	_ = conn.SetDeadline(time.Now().Add(15 * time.Second))
-	req, _ := json.Marshal(map[string]any{"acao": "apagar-sessao", "id": sessionID, "pid": pid})
-	if _, err := conn.Write(append(req, '\n')); err != nil {
-		return DeleteResult{}, err
+	b, _ := json.Marshal(req)
+	if _, err := conn.Write(append(b, '\n')); err != nil {
+		return err
 	}
 	line, err := bufio.NewReader(conn).ReadBytes('\n')
 	if err != nil {
-		return DeleteResult{}, fmt.Errorf("sem resposta do ajudante: %w", err)
+		return fmt.Errorf("sem resposta do ajudante: %w", err)
 	}
-	var res DeleteResult
-	if err := json.Unmarshal(line, &res); err != nil {
-		return DeleteResult{}, err
-	}
-	if !res.OK {
-		return res, errors.New(res.Error)
-	}
-	return res, nil
+	return json.Unmarshal(line, out)
 }

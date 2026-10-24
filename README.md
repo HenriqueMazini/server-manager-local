@@ -47,8 +47,9 @@ desenvolvimento como `npm run dev`, e liga ou desliga o conjunto de uma vez.
 
 - **Seus projetos em `~/projetos`.** É a pasta padrão, uma subpasta por projeto. Se ela não
   existir, o painel funciona do mesmo jeito, só não lista pastas no "Criar server".
-- **Python 3 e systemd do usuário**, para o ajudante que apaga sessões do Claude. Já vêm no
-  Ubuntu e na maioria das distribuições. Sem eles, o painel funciona e só a lixeira não aparece.
+- **Python 3 e systemd do usuário**, para o ajudante que apaga sessões do Claude e encerra servidores
+  esquecidos fora do Docker. Já vêm no Ubuntu e na maioria das distribuições. Sem eles, o painel
+  funciona e só esses botões não aparecem.
 
 Node e Go não são necessários para usar o painel: tudo é compilado dentro do Docker.
 
@@ -136,6 +137,7 @@ sessões e portas.
 | Retomar uma conversa fechada | Abra "Fechadas" no fim da lista de sessões e use o botão de terminal: copia o `claude --resume` |
 | Apagar uma sessão do Claude | Lixeira na sessão, aberta ou fechada. Confirma numa janela; encerra e apaga a conversa |
 | Achar sessões esquecidas em worktrees apagadas | Aparecem em "Precisa da sua atenção" e com a marca "pasta apagada". Encerre pela lixeira |
+| Achar um `npm run dev` esquecido fora do Docker | Aparece em "Precisa da sua atenção" e em Sistema e limpeza → "Rodando fora do painel", com o projeto, a worktree e a memória. Encerre por lá |
 | Ver todas as portas em uso | Sistema e limpeza → "Portas" |
 | Resolver conflito de porta | Aparece em "Precisa da sua atenção". Em Sistema e limpeza, "Copiar prompt" e cole no Claude Code do projeto |
 | Limpar os servidores das worktrees de feature | Sistema e limpeza → "Worktrees de …". Remova uma, as já removidas do git ou todas; os volumes só saem se marcar |
@@ -213,10 +215,12 @@ Ficam no `docker-compose.yml` e no `.env`.
 - A sua home e o `/proc` são montados **somente para leitura**: o painel lê projetos e sessões,
   mas não altera arquivos. As análises do "Criar server" também só leem.
 - A única pasta gravável do painel é `data/`, com os apelidos dos projetos.
-- **Apagar sessões do Claude passa por um ajudante fora do Docker** (`helper/ajudante.py`), um
-  serviço do seu usuário instalado pelo `scripts/install.sh`. Ele só sabe fazer isso e confere
-  antes de agir: o processo é mesmo um `claude` daquela conversa e tudo o que apaga fica dentro de
-  `~/.claude`. O painel fala com ele por `data/ajudante.sock`, acessível só pelo seu usuário. Assim
+- **Apagar sessões do Claude e encerrar servidores fora do Docker passa por um ajudante**
+  (`helper/ajudante.py`), um serviço do seu usuário instalado pelo `scripts/install.sh`. Ele só sabe
+  fazer essas duas coisas e confere antes de agir. Para sessões: o processo é mesmo um `claude`
+  daquela conversa e tudo o que apaga fica dentro de `~/.claude`. Para servidores: o pid não foi
+  reaproveitado, o processo é seu, não roda num container nem é um serviço do systemd, e a pasta
+  dele fica dentro de `~/projetos`. O painel fala com ele por `data/ajudante.sock`, acessível só pelo seu usuário. Assim
   o container nunca tem escrita na `~/.claude`, onde ficam as credenciais do Claude Code.
 - Os prompts gerados nunca incluem valores de senhas ou chaves, só os nomes das variáveis.
 

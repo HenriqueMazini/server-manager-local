@@ -39,3 +39,24 @@ func TestTopApps(t *testing.T) {
 		t.Errorf("outros = %+v", top[2])
 	}
 }
+
+func TestInContainer(t *testing.T) {
+	cases := map[string]bool{
+		"0::/system.slice/docker-01dd0118b1c9.scope\n":                                  true,
+		"0::/../docker-01dd0118b1c9.scope\n":                                            true,
+		"0::/user.slice/user-1000.slice/user@1000.service/app.slice/ptyxis-spawn.scope": false,
+		"0::/init.scope\n": false,
+	}
+	for cg, want := range cases {
+		if got := InContainer(cg); got != want {
+			t.Errorf("InContainer(%q) = %v, quero %v", cg, got, want)
+		}
+	}
+	top := TopApps(map[int]Proc{
+		1: {Comm: "node", Argv: []string{"node", "a.js"}, RSS: 100, Container: true},
+		2: {Comm: "node", Argv: []string{"node", "b.js"}, RSS: 50},
+	}, 5)
+	if top[0].MemUsed != 150 || top[0].InContainers != 100 {
+		t.Errorf("node = %+v", top[0])
+	}
+}

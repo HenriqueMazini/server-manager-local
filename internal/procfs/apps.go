@@ -11,6 +11,8 @@ type App struct {
 	Name    string `json:"name"`
 	MemUsed uint64 `json:"memUsed"`
 	Procs   int    `json:"procs"`
+	// InContainers é a parte de MemUsed que roda dentro de containers (já aparece nos projetos).
+	InContainers uint64 `json:"inContainers"`
 }
 
 // friendly traduz executáveis conhecidos para o nome que a pessoa reconhece.
@@ -62,6 +64,9 @@ func TopApps(procs map[int]Proc, n int) []App {
 		}
 		a.MemUsed += p.RSS
 		a.Procs++
+		if p.Container {
+			a.InContainers += p.RSS
+		}
 	}
 	all := make([]App, 0, len(by))
 	for _, a := range by {
@@ -75,6 +80,7 @@ func TopApps(procs map[int]Proc, n int) []App {
 	for _, a := range all[n:] {
 		rest.MemUsed += a.MemUsed
 		rest.Procs += a.Procs
+		rest.InContainers += a.InContainers
 	}
 	return append(all[:n:n], rest)
 }
