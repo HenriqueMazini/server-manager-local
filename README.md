@@ -138,6 +138,7 @@ sessões e portas.
 | Apagar uma sessão do Claude | Lixeira na sessão, aberta ou fechada. Confirma numa janela; encerra e apaga a conversa |
 | Achar sessões esquecidas em worktrees apagadas | Aparecem em "Precisa da sua atenção" e com a marca "pasta apagada". Encerre pela lixeira |
 | Achar um `npm run dev` esquecido fora do Docker | Aparece em "Precisa da sua atenção" e em Sistema e limpeza → "Rodando fora do painel", com o projeto, a worktree e a memória. Encerre por lá |
+| Entender o aviso de memória esgotada com RAM livre | É o swap: veja o número "Swap" na visão geral e o cartão em Sistema e limpeza (limite do systemd-oomd, quem está no swap, como esvaziar) |
 | Ver todas as portas em uso | Sistema e limpeza → "Portas" |
 | Resolver conflito de porta | Aparece em "Precisa da sua atenção". Em Sistema e limpeza, "Copiar prompt" e cole no Claude Code do projeto |
 | Limpar os servidores das worktrees de feature | Sistema e limpeza → "Worktrees de …". Remova uma, as já removidas do git ou todas; os volumes só saem se marcar |

@@ -30,6 +30,7 @@ export type Container = {
   ports: Port[]
   memUsed: number
   memLimit: number
+  swapUsed?: number
 }
 
 export type Link = { label: string; url: string }
@@ -49,6 +50,7 @@ export type Project = {
   running: number
   total: number
   memUsed: number
+  swapUsed?: number
   warnings: string[]
   worktree?: Worktree
 }
@@ -60,7 +62,11 @@ export type HostMem = {
   cached: number
   swapTotal: number
   swapUsed: number
+  shmem?: number // memória compartilhada e tmpfs
 }
+
+// Pressão de memória (/proc/pressure/memory), em %: o que o systemd-oomd vigia.
+export type Pressure = { available: boolean; some10: number; some60: number; some300: number; full10: number; full60: number }
 
 export type PortEntry = {
   hostPort: number
@@ -117,14 +123,15 @@ export type ClaudeSession = {
   memUsed: number
   procs: number
   children: ClaudeChild[]
+  swapUsed?: number
   cwdGone?: boolean // a pasta foi apagada com a sessão aberta
 }
 
 export type ClosedSession = { id: string; name: string; cwd?: string; updatedAt: string; size: number }
 
-export type ClaudeSummary = { available: boolean; canDelete?: boolean; sessions: ClaudeSession[]; closed?: ClosedSession[]; memUsed: number }
+export type ClaudeSummary = { available: boolean; canDelete?: boolean; sessions: ClaudeSession[]; closed?: ClosedSession[]; memUsed: number; swapUsed?: number }
 
-export type HostApp = { name: string; memUsed: number; procs: number; inContainers?: number }
+export type HostApp = { name: string; memUsed: number; procs: number; inContainers?: number; swap?: number }
 
 export type Temporary = { name: string; image: string; origin: 'testcontainers' | '--rm'; running: boolean }
 
@@ -140,6 +147,7 @@ export type DevRun = {
   projectName: string
   worktree?: string
   memUsed: number
+  swapUsed?: number
   procs: number
   orphan: boolean // quem iniciou já fechou: ficou pendurado no systemd
   programs: string[]
@@ -159,4 +167,6 @@ export type Snapshot = {
   orphans: Orphan[]
   temporary?: Temporary[]
   devRuns?: DevRun[]
+  pressure?: Pressure
+  swapApps?: HostApp[]
 }

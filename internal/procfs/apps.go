@@ -13,6 +13,7 @@ type App struct {
 	Procs   int    `json:"procs"`
 	// InContainers é a parte de MemUsed que roda dentro de containers (já aparece nos projetos).
 	InContainers uint64 `json:"inContainers"`
+	Swap         uint64 `json:"swap"` // parte no swap
 }
 
 // friendly traduz executáveis conhecidos para o nome que a pessoa reconhece.
@@ -51,9 +52,25 @@ func AppName(p Proc) string {
 // TopApps agrupa os processos por aplicativo e devolve os n que mais usam memória,
 // com o resto somado em "Outros".
 func TopApps(procs map[int]Proc, n int) []App {
+	return top(procs, n, func(a App) uint64 { return a.MemUsed })
+}
+
+// TopSwap é como TopApps, ordenado pelo que cada aplicativo tem no swap; só entra quem tem algum.
+func TopSwap(procs map[int]Proc, n int) []App {
+	all := top(procs, n, func(a App) uint64 { return a.Swap })
+	out := all[:0]
+	for _, a := range all {
+		if a.Swap > 0 {
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
+func top(procs map[int]Proc, n int, key func(App) uint64) []App {
 	by := map[string]*App{}
 	for _, p := range procs {
-		if p.RSS == 0 {
+		if p.RSS == 0 && p.Swap == 0 {
 			continue // threads do kernel
 		}
 		name := AppName(p)
@@ -63,6 +80,7 @@ func TopApps(procs map[int]Proc, n int) []App {
 			by[name] = a
 		}
 		a.MemUsed += p.RSS
+		a.Swap += p.Swap
 		a.Procs++
 		if p.Container {
 			a.InContainers += p.RSS
@@ -72,7 +90,7 @@ func TopApps(procs map[int]Proc, n int) []App {
 	for _, a := range by {
 		all = append(all, *a)
 	}
-	sort.Slice(all, func(i, j int) bool { return all[i].MemUsed > all[j].MemUsed })
+	sort.Slice(all, func(i, j int) bool { return key(all[i]) > key(all[j]) })
 	if len(all) <= n {
 		return all
 	}
@@ -81,6 +99,7 @@ func TopApps(procs map[int]Proc, n int) []App {
 		rest.MemUsed += a.MemUsed
 		rest.Procs += a.Procs
 		rest.InContainers += a.InContainers
+		rest.Swap += a.Swap
 	}
 	return append(all[:n:n], rest)
 }

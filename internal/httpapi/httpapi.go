@@ -76,8 +76,8 @@ func (a *api) health(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "version": version.Current})
 }
 
-func (a *api) snapshot(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, a.st.Snapshot())
+func (a *api) snapshot(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, a.st.Fresh(r.Context()))
 }
 
 func (a *api) ports(w http.ResponseWriter, _ *http.Request) {

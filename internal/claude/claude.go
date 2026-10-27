@@ -30,6 +30,7 @@ type Session struct {
 	StartedAt time.Time `json:"startedAt,omitzero"`
 	UpdatedAt time.Time `json:"updatedAt,omitzero"` // última mudança de estado registrada pelo Claude Code
 	MemUsed   uint64    `json:"memUsed"`            // sessão + processos filhos (MCP, comandos), em bytes
+	SwapUsed  uint64    `json:"swapUsed,omitempty"` // parte da sessão e dos filhos que está no swap
 	Procs     int       `json:"procs"`
 	Children  []Child   `json:"children"`
 	CwdGone   bool      `json:"cwdGone,omitempty"` // a pasta da sessão foi apagada com ela aberta (ex.: worktree removida)
@@ -48,6 +49,7 @@ type Summary struct {
 	Sessions  []Session       `json:"sessions"`
 	Closed    []ClosedSession `json:"closed"` // conversas guardadas sem processo aberto
 	MemUsed   uint64          `json:"memUsed"`
+	SwapUsed  uint64          `json:"swapUsed"`
 }
 
 // Read monta o resumo a partir de /proc (procRoot). sessionsDir é ~/.claude/sessions.
@@ -109,6 +111,7 @@ func FromProcs(procs map[int]procfs.Proc, sessionsDir, home string) Summary {
 			stack = stack[:len(stack)-1]
 			q := procs[pid]
 			s.MemUsed += q.RSS
+			s.SwapUsed += q.Swap
 			s.Procs++
 			if pid != p.PID && q.RSS > 0 {
 				s.Children = append(s.Children, Child{Name: childName(q), MemUsed: q.RSS})
@@ -118,6 +121,7 @@ func FromProcs(procs map[int]procfs.Proc, sessionsDir, home string) Summary {
 		sort.Slice(s.Children, func(i, j int) bool { return s.Children[i].MemUsed > s.Children[j].MemUsed })
 		out.Sessions = append(out.Sessions, s)
 		out.MemUsed += s.MemUsed
+		out.SwapUsed += s.SwapUsed
 	}
 	sortSessions(out.Sessions)
 	return out
@@ -186,7 +190,7 @@ func readMeta(dir string, p procfs.Proc) (meta, bool) {
 	if json.Unmarshal(b, &m) != nil || m.PID != p.PID {
 		return meta{}, false
 	}
-	if m.ProcStart != "" && m.ProcStart != p.Start {
+	if m.ProcStart != "" && m.ProcStart != p.StartTime() {
 		return meta{}, false
 	}
 	return m, true

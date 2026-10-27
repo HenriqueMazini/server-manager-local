@@ -1,6 +1,10 @@
 package procfs
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func TestAppName(t *testing.T) {
 	cases := []struct {
@@ -58,5 +62,57 @@ func TestInContainer(t *testing.T) {
 	}, 5)
 	if top[0].MemUsed != 150 || top[0].InContainers != 100 {
 		t.Errorf("node = %+v", top[0])
+	}
+}
+
+// O Scan não lê o stat (passa pela checagem de ptrace); o início só é lido sob demanda e guardado.
+func TestScanSemStat(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "42")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	status := "Name:\tnode\nUmask:\t0002\nPPid:\t7\nVmRSS:\t2048 kB\nVmSwap:\t1024 kB\n"
+	if err := os.WriteFile(filepath.Join(dir, "status"), []byte(status), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stat := "42 (node) S 7 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 999 0 0\n"
+	if err := os.WriteFile(filepath.Join(dir, "stat"), []byte(stat), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	procs := Scan(root)
+	p := procs[42]
+	if p.Comm != "node" || p.PPID != 7 || p.RSS != 2048*1024 || p.Swap != 1024*1024 || p.Start != "" {
+		t.Fatalf("p = %+v", p)
+	}
+	if got := p.StartTime(); got != "999" {
+		t.Errorf("StartTime = %q", got)
+	}
+	// Com o stat apagado, o valor guardado continua valendo enquanto o processo existir.
+	if err := os.Remove(filepath.Join(dir, "stat")); err != nil {
+		t.Fatal(err)
+	}
+	if got := Scan(root)[42].StartTime(); got != "999" {
+		t.Errorf("StartTime do cache = %q", got)
+	}
+	// Processo sumiu: o cache esquece.
+	if err := os.RemoveAll(dir); err != nil {
+		t.Fatal(err)
+	}
+	Scan(root)
+	if got := (Proc{PID: 42, Comm: "node", PPID: 7, root: root}).StartTime(); got != "" {
+		t.Errorf("cache não foi limpo: %q", got)
+	}
+}
+
+func TestTopSwap(t *testing.T) {
+	procs := map[int]Proc{
+		1: {Comm: "chrome", Argv: []string{"/opt/google/chrome/chrome"}, RSS: 900, Swap: 10},
+		2: {Comm: "gnome-shell", Argv: []string{"/usr/bin/gnome-shell"}, RSS: 100, Swap: 500},
+		3: {Comm: "code", Argv: []string{"/usr/share/code/code"}, RSS: 400},
+	}
+	got := TopSwap(procs, 5)
+	if len(got) != 2 || got[0].Name != "GNOME Shell" || got[0].Swap != 500 || got[1].Name != "Google Chrome" {
+		t.Errorf("TopSwap = %+v", got)
 	}
 }

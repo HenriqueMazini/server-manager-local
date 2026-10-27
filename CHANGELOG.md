@@ -11,6 +11,21 @@ Anote cada mudança em **Não lançado** no mesmo commit que a faz. O script
 
 ## [Não lançado]
 
+### Adicionado
+- Swap no painel: número-chave na visão geral, aviso em "Precisa da sua atenção" quando o swap passa de
+  50% (ou a pressão de memória sobe) e um cartão em Sistema e limpeza com o uso, o limite do
+  systemd-oomd (90%), a pressão de memória, o que dá para liberar pelo painel (sessões do Claude,
+  projetos, servidores fora do painel), o swap por aplicativo, a parte de memória compartilhada e tmpfs
+  e o comando para esvaziar o swap, dizendo se cabe na RAM livre.
+
+### Corrigido
+- O container gerava ~177 bloqueios do AppArmor por segundo no log do kernel (mais de 5 milhões por
+  dia): a cada 2 s lia `/proc/<pid>/stat` de todos os processos, e o `stat` passa pela checagem de
+  ptrace, que o perfil `docker-default` nega para processos de fora. Agora o nome, o processo pai e a
+  memória vêm do `status`, e o início do processo (só existe no `stat`) é lido uma vez por processo e
+  só para sessões do Claude e servidores fora do painel. Em uso normal: 0 bloqueios por minuto.
+- Sem nenhuma aba aberta, o painel atualiza a cada 30 s em vez de 2 s; ao abrir, atualiza na hora.
+
 ## [2.3.0] - 2026-10-24
 
 ### Adicionado

@@ -63,3 +63,13 @@ func TestParseMem(t *testing.T) {
 		t.Errorf("cache/swap = %+v", m)
 	}
 }
+
+func TestParsePressure(t *testing.T) {
+	p := ParsePressure("some avg10=1.50 avg60=0.02 avg300=3.83 total=1961167819\nfull avg10=0.75 avg60=0.01 avg300=3.54 total=1744466132\n")
+	if !p.Available || p.Some10 != 1.5 || p.Some60 != 0.02 || p.Some300 != 3.83 || p.Full10 != 0.75 || p.Full60 != 0.01 {
+		t.Errorf("p = %+v", p)
+	}
+	if ParsePressure("").Available {
+		t.Error("sem conteúdo não pode marcar disponível")
+	}
+}

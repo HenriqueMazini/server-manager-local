@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
-import type { ClaudeSummary, HostMem, Project, Snapshot } from '../types'
+import type { ClaudeSummary, HostMem, Pressure, Project, Snapshot } from '../types'
+import { OOMD_SWAP, SwapKpiBody, swapPct, swapTone } from './Swap'
 import type { Page } from '../pages'
 import { bytes, bytesParts, percent } from '../format'
 import { StackBar, type MemoryItem } from './Memory'
@@ -82,6 +83,20 @@ export function attentionItems(snap: Snapshot, worktrees: Project[]): Attention[
       title: `${g.label} rodando fora do painel, sem terminal`,
       detail: `${g.runs.map((r) => r.command).join(' · ')} · ${bytes(g.memUsed)}`,
       action: 'Encerrar',
+      page: 'sistema',
+    })
+  }
+  // Swap enchendo ou o computador travando para trocar memória com o disco: é o que dispara o systemd-oomd.
+  const tone = swapTone(snap.host, snap.pressure)
+  if (snap.host.swapTotal && tone !== 'on') {
+    const pressure = snap.pressure?.some10 ?? 0
+    out.push({
+      key: 'swap',
+      tone,
+      icon: 'alert',
+      title: `Swap em ${Math.round(swapPct(snap.host))}%${pressure >= 10 ? ` e pressão de memória em ${pressure.toFixed(0)}%` : ''}`,
+      detail: `${bytes(snap.host.swapUsed)} de ${bytes(snap.host.swapTotal)} · o sistema encerra processos a partir de ${OOMD_SWAP}%`,
+      action: 'Ver',
       page: 'sistema',
     })
   }
@@ -191,9 +206,11 @@ export function Kpis({
   claude,
   projects,
   worktrees,
+  pressure,
   go,
 }: {
   host: HostMem
+  pressure?: Pressure
   memItems: MemoryItem[]
   colors: Record<string, string>
   claude: ClaudeSummary
@@ -227,13 +244,13 @@ export function Kpis({
         </div>
       </section>
 
-      <section aria-label="Números-chave" className="hidden grid-cols-[repeat(auto-fit,minmax(230px,1fr))] gap-3.5 sm:grid">
-        <Kpi label="Ambientes de desenvolvimento">
+      <section aria-label="Números-chave" className="hidden grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-3.5 sm:grid">
+        <Kpi label="Desenvolvimento">
           <Figure value={dv} unit={du} aside={`${percent(dev, host.total)} do PC`} />
           <StackBar items={memItems} colors={colors} />
         </Kpi>
         <Kpi label="Computador">
-          <Figure value={hv} unit={`${hu === 'GB' ? '' : hu + ' '}de ${bytes(host.total)}`} aside={`${fv}${fu === 'GB' ? '' : ' ' + fu} livre`} />
+          <Figure value={hv} unit={hu} aside={`${fv} ${fu} livre`} />
           <div className="h-1.5 overflow-hidden rounded-full bg-line">
             <div className="h-full bg-muted transition-[width] duration-700" style={{ width: `${host.total ? (host.used / host.total) * 100 : 0}%` }} />
           </div>
@@ -247,7 +264,7 @@ export function Kpis({
           </span>
         </Kpi>
         <Kpi label="Projetos" onClick={() => go('projetos')}>
-          <Figure value={String(on.length)} unit={`de ${projects.length} ${on.length === 1 ? 'ligado' : 'ligados'}`} aside={worktrees > 0 ? `+${worktrees} worktrees` : undefined} />
+          <Figure value={String(on.length)} unit={`de ${projects.length}`} aside={worktrees > 0 ? `+${worktrees} worktrees` : undefined} />
           <span className="flex flex-wrap gap-1">
             {projects.map((p) => (
               <span key={p.key} title={p.name} className="flex">
@@ -255,6 +272,9 @@ export function Kpis({
               </span>
             ))}
           </span>
+        </Kpi>
+        <Kpi label="Swap" onClick={() => go('sistema')}>
+          <SwapKpiBody host={host} pressure={pressure} />
         </Kpi>
       </section>
     </>

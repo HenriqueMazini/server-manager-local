@@ -18,7 +18,7 @@ func fakeProc(t *testing.T, root string, pid, ppid int, comm, start string, rssK
 	// Campo 22 (início) é o 20º depois do ")".
 	stat := itoa(pid) + " (" + comm + ") S " + itoa(ppid) + " 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 " + start + " 0 0\n"
 	must(t, os.WriteFile(filepath.Join(dir, "stat"), []byte(stat), 0o644))
-	must(t, os.WriteFile(filepath.Join(dir, "status"), []byte("Name:\t"+comm+"\nVmRSS:\t"+itoa(rssKB)+" kB\n"), 0o644))
+	must(t, os.WriteFile(filepath.Join(dir, "status"), []byte("Name:\t"+comm+"\nPPid:\t"+itoa(ppid)+"\nVmRSS:\t"+itoa(rssKB)+" kB\n"), 0o644))
 	must(t, os.WriteFile(filepath.Join(dir, "cmdline"), []byte(args), 0o644))
 }
 

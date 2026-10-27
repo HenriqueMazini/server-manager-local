@@ -144,7 +144,7 @@ export function ComputerMemory({ host, dev, apps }: { host: HostMem; dev: number
   const w = (n: number) => `${host.total ? Math.min((n / host.total) * 100, 100) : 0}%`
   const [value, unit] = bytesParts(host.used)
   return (
-    <section aria-labelledby="pc-title" className="flex min-w-0 flex-[2_1_340px] flex-col gap-3.5 rounded-[14px] border border-line bg-surface px-[18px] py-4">
+    <section aria-labelledby="pc-title" className="flex min-w-0 flex-col gap-3.5 rounded-[14px] border border-line bg-surface px-[18px] py-4">
       <h2 id="pc-title" className="text-sm font-semibold">
         Memória do computador
       </h2>

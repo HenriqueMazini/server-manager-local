@@ -42,6 +42,7 @@ type Container struct {
 	Ports          []Port `json:"ports"`
 	MemUsed        uint64 `json:"memUsed"`
 	MemLimit       uint64 `json:"memLimit"`
+	SwapUsed       uint64 `json:"swapUsed,omitempty"` // memória dos processos do container que está no swap
 }
 
 // Worktree liga um projeto compose de uma worktree do git ao projeto principal.
@@ -73,6 +74,7 @@ type Project struct {
 	Running  int         `json:"running"`
 	Total    int         `json:"total"`
 	MemUsed  uint64      `json:"memUsed"`
+	SwapUsed uint64      `json:"swapUsed,omitempty"`
 	Warnings []string    `json:"warnings"`
 	Worktree *Worktree   `json:"worktree,omitempty"`
 }
@@ -85,6 +87,18 @@ type HostMem struct {
 	Cached    uint64 `json:"cached"`
 	SwapTotal uint64 `json:"swapTotal"`
 	SwapUsed  uint64 `json:"swapUsed"`
+	Shmem     uint64 `json:"shmem"` // memória compartilhada e tmpfs: vai para o swap sem aparecer em processo nenhum
+}
+
+// Pressure é a pressão de memória do computador (/proc/pressure/memory): a fração do tempo em que
+// tarefas ficaram esperando memória, em %. É o que o systemd-oomd vigia para encerrar processos.
+type Pressure struct {
+	Available bool    `json:"available"`
+	Some10    float64 `json:"some10"`
+	Some60    float64 `json:"some60"`
+	Some300   float64 `json:"some300"`
+	Full10    float64 `json:"full10"`
+	Full60    float64 `json:"full60"`
 }
 
 // HostListener é uma porta TCP em LISTEN na máquina.
@@ -173,6 +187,8 @@ type Snapshot struct {
 	Orphans   []Orphan       `json:"orphans"`
 	Temporary []Temporary    `json:"temporary"` // ocultos da lista de projetos
 	DevRuns   []DevRun       `json:"devRuns"`   // servidores de desenvolvimento rodando fora do Docker
+	Pressure  Pressure       `json:"pressure"`
+	SwapApps  []procfs.App   `json:"swapApps"` // aplicativos com mais memória no swap
 }
 
 // DevRun é um servidor de desenvolvimento rodando direto no computador, fora do Docker: o processo que foi iniciado (npm run dev) e tudo abaixo dele.
@@ -185,6 +201,7 @@ type DevRun struct {
 	ProjectName string   `json:"projectName"`          // nome do projeto, ou da pasta
 	Worktree    string   `json:"worktree,omitempty"`   // nome da worktree, quando vem de uma
 	MemUsed     uint64   `json:"memUsed"`              // soma do processo e de todos os filhos
+	SwapUsed    uint64   `json:"swapUsed,omitempty"`   // parte no swap
 	Procs       int      `json:"procs"`
 	Orphan      bool     `json:"orphan"` // quem iniciou já fechou: o processo ficou pendurado no systemd
 	Programs    []string `json:"programs"`

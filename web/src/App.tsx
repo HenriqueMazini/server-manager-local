@@ -16,6 +16,7 @@ import { SettingsModal } from './components/Settings'
 import { attentionItems, AttentionList, Kpis } from './components/Overview'
 import { MobileNav, Sidebar, type Badge } from './components/Nav'
 import { Search } from './components/Search'
+import { SwapCard } from './components/Swap'
 import { DevRunsCard, DevRunsSummary } from './components/DevRuns'
 import { ProjectPicker } from './components/ProjectPicker'
 import { PAGES, usePage, type Page } from './pages'
@@ -268,7 +269,7 @@ export default function App() {
           {bell}
         </PageHeader>
         {error}
-        <Kpis host={snap.host} memItems={memItems} colors={colors} claude={claude} projects={mainProjects} worktrees={worktrees.length} go={go} />
+        <Kpis host={snap.host} memItems={memItems} colors={colors} claude={claude} projects={mainProjects} worktrees={worktrees.length} pressure={snap.pressure} go={go} />
         <div className="flex flex-wrap items-start gap-[18px]">
           <AttentionList items={attention} go={go} />
           <div className="hidden min-w-0 flex-[2_1_280px] sm:flex">
@@ -490,7 +491,19 @@ export default function App() {
             <OrphansCard orphans={snap.orphans ?? []} />
             <TemporariesNote items={snap.temporary ?? []} />
           </section>
-          <ComputerMemory host={snap.host} dev={devMem} apps={snap.apps ?? []} />
+          <div className="flex min-w-0 flex-[2_1_340px] flex-col gap-[18px]">
+            <ComputerMemory host={snap.host} dev={devMem} apps={snap.apps ?? []} />
+            <SwapCard
+              host={snap.host}
+              pressure={snap.pressure}
+              claude={claude}
+              projects={mainProjects}
+              devRuns={devRuns}
+              apps={snap.swapApps ?? []}
+              onRestart={onRestart}
+              onSessions={() => go('sessoes')}
+            />
+          </div>
         </div>
         <PortsCard ports={snap.ports} />
         {mobileFooter}

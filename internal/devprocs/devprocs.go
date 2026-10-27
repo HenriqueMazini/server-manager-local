@@ -95,7 +95,7 @@ func Find(procs map[int]procfs.Proc, projects []model.Project, root, home string
 	res := resolver{projects: projects, root: root, home: home}
 	out := make([]Run, 0, len(roots))
 	for pid, path := range roots {
-		r := Run{PID: pid, Start: procs[pid].Start, Command: shortCommand(procs, pid)}
+		r := Run{PID: pid, Start: procs[pid].StartTime(), Command: shortCommand(procs, pid)}
 		seen := map[string]bool{}
 		stack := []int{pid}
 		for len(stack) > 0 {
@@ -105,6 +105,7 @@ func Find(procs map[int]procfs.Proc, projects []model.Project, root, home string
 				continue
 			}
 			r.MemUsed += q.RSS
+			r.SwapUsed += q.Swap
 			r.Procs++
 			if n := procfs.AppName(q); q.RSS > 0 && !seen[n] && n != "sh" && n != "bash" {
 				seen[n] = true
