@@ -11,6 +11,8 @@ Anote cada mudança em **Não lançado** no mesmo commit que a faz. O script
 
 ## [Não lançado]
 
+## [2.5.0] - 2026-10-27
+
 ### Alterado
 - Visão geral reorganizada em duas colunas: à esquerda o que pede ação ("Precisa da sua atenção" e
   "Ligados agora"), à direita um quadro só de memória com abas Desenvolvimento, Computador e Swap, no
@@ -274,7 +276,8 @@ Primeira versão estável: projetos, sessões do Claude, memória, portas e aler
 - Inventário e conflitos de porta, com prompt para o Claude Code.
 - Guia `docs/ADICIONAR-PROJETO.md`.
 
-[Não lançado]: https://github.com/HenriqueMazini/server-manager-local/compare/v2.4.0...HEAD
+[Não lançado]: https://github.com/HenriqueMazini/server-manager-local/compare/v2.5.0...HEAD
+[2.5.0]: https://github.com/HenriqueMazini/server-manager-local/compare/v2.4.0...v2.5.0
 [2.4.0]: https://github.com/HenriqueMazini/server-manager-local/compare/v2.3.0...v2.4.0
 [2.3.0]: https://github.com/HenriqueMazini/server-manager-local/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/HenriqueMazini/server-manager-local/compare/v2.1.0...v2.2.0
