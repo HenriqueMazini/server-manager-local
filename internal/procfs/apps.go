@@ -42,7 +42,7 @@ func AppName(p Proc) string {
 			key = b
 		}
 	}
-	key = strings.TrimSuffix(key, ".exe")
+	key = strings.TrimPrefix(strings.TrimSuffix(key, ".exe"), "-") // "-bash": shell de login
 	if n, ok := friendly[key]; ok {
 		return n
 	}

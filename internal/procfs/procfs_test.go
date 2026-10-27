@@ -18,6 +18,7 @@ func TestAppName(t *testing.T) {
 		{Proc{Comm: "claude", Argv: []string{"claude", "-c"}}, "Claude Code"},
 		{Proc{Comm: "kworker/0:1"}, "kworker/0:1"},
 		{Proc{Comm: "meuapp", Argv: []string{"./bin/meuapp"}}, "meuapp"},
+		{Proc{Comm: "bash", Argv: []string{"-bash"}}, "bash"},
 	}
 	for _, c := range cases {
 		if got := AppName(c.p); got != c.want {

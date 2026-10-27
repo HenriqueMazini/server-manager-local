@@ -125,7 +125,7 @@ const iconTone: Record<Tone, string> = {
 
 export function AttentionList({ items, go }: { items: Attention[]; go: (p: Page) => void }) {
   return (
-    <section aria-labelledby="att-title" className="min-w-0 flex-[3_1_380px] overflow-hidden rounded-[14px] border border-line bg-surface">
+    <section aria-labelledby="att-title" className="min-w-0 overflow-hidden rounded-[14px] border border-line bg-surface">
       <header className="flex items-center gap-2.5 border-b border-line px-3.5 py-3 sm:px-[18px] sm:py-3.5">
         <h2 id="att-title" className="text-[13px] font-semibold sm:text-sm">
           Precisa da sua atenção

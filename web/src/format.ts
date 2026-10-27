@@ -5,7 +5,8 @@ const MB = 1024 ** 2
 const GB = 1024 ** 3
 
 export function bytes(n: number): string {
-  if (n >= GB) return `${nf1.format(n / GB)} GB`
+  // A partir de 1000 MB já vira GB: "1.002 MB" confunde mais do que ajuda.
+  if (n >= 1000 * MB) return `${nf1.format(n / GB)} GB`
   if (n >= MB) return `${nf0.format(n / MB)} MB`
   if (n > 0) return `${nf0.format(n / 1024)} KB`
   return '0 MB'

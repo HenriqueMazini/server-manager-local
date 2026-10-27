@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { removeOrphans } from '../api'
-import type { Conflict, HostApp, HostMem, Orphan, PortEntry, Temporary } from '../types'
-import { bytes, bytesParts, shortPath } from '../format'
+import type { Conflict, Orphan, PortEntry, Temporary } from '../types'
+import { shortPath } from '../format'
 import { copyText, cx, Icon, Spinner, useToast } from './ui'
 
 // Conflito de porta: quem não sobe, quem ocupa, a porta sugerida e o prompt para o Claude Code do projeto.
@@ -132,56 +132,6 @@ export function TemporariesNote({ items }: { items: Temporary[] }) {
         </ul>
       )}
     </div>
-  )
-}
-
-// Só aparecem aplicativos acima deste consumo.
-const MIN_APP = 1024 ** 3
-
-export function ComputerMemory({ host, dev, apps }: { host: HostMem; dev: number; apps: HostApp[] }) {
-  const big = apps.filter((a) => a.name !== 'Outros' && a.memUsed >= MIN_APP)
-  const others = Math.max(host.used - dev, 0)
-  const w = (n: number) => `${host.total ? Math.min((n / host.total) * 100, 100) : 0}%`
-  const [value, unit] = bytesParts(host.used)
-  return (
-    <section aria-labelledby="pc-title" className="flex min-w-0 flex-col gap-3.5 rounded-[14px] border border-line bg-surface px-[18px] py-4">
-      <h2 id="pc-title" className="text-sm font-semibold">
-        Memória do computador
-      </h2>
-      <div>
-        <div className="flex items-baseline gap-1.5">
-          <span className="tabular font-mono text-[26px] font-medium leading-none">{value}</span>
-          <span className="text-muted">
-            {unit === 'GB' ? '' : `${unit} `}de {bytes(host.total)} em uso
-          </span>
-        </div>
-        <div className="mt-2.5 flex h-2 gap-[2px] overflow-hidden rounded-full bg-line" role="img" aria-label={`Desenvolvimento ${bytes(dev)}, outros apps ${bytes(others)}, livre ${bytes(host.available)}`}>
-          <span className="h-full transition-[width] duration-700" style={{ width: w(dev), background: 'var(--series-1)' }} />
-          <span className="h-full bg-muted transition-[width] duration-700" style={{ width: w(others) }} />
-        </div>
-        <div className="mt-2 flex flex-wrap gap-x-3.5 gap-y-1.5 text-xs text-muted">
-          <span className="flex items-center gap-1.5">
-            <span className="size-2 rounded-[2px]" style={{ background: 'var(--series-1)' }} />
-            desenvolvimento {bytes(dev)}
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="size-2 rounded-[2px] bg-muted" />
-            outros apps {bytes(others)}
-          </span>
-          <span>livre {bytes(host.available)}</span>
-        </div>
-      </div>
-      {big.length > 0 && (
-        <ul title="Aplicativos acima de 1 GB. Cada um soma a memória de todos os seus processos.">
-          {big.map((a) => (
-            <li key={a.name} className="flex items-center gap-2.5 border-t border-divider py-[9px] text-[13px]">
-              <span className="min-w-0 flex-1 truncate">{a.name}</span>
-              <span className="tabular font-mono text-xs">{bytes(a.memUsed)}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
   )
 }
 

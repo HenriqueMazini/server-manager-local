@@ -11,6 +11,20 @@ Anote cada mudança em **Não lançado** no mesmo commit que a faz. O script
 
 ## [Não lançado]
 
+### Alterado
+- Visão geral reorganizada em duas colunas: à esquerda o que pede ação ("Precisa da sua atenção" e
+  "Ligados agora"), à direita um quadro só de memória com abas Desenvolvimento, Computador e Swap, no
+  mesmo desenho. Antes eram três colunas de alturas diferentes e dois quadros de memória repetindo os
+  números do topo.
+- Sistema e limpeza reorganizado em faixas de largura total: três medidores (RAM, swap e pressão de
+  memória, com os limites do systemd-oomd), "Para resolver", "O que está no swap" (o que dá para
+  liberar pelo painel, ao lado do swap por aplicativo, e o comando para esvaziar) e as portas. O quadro
+  de aplicativos que repetia a visão geral saiu.
+
+### Corrigido
+- Valores entre 1000 e 1024 MB apareciam como "1.002 MB"; agora viram "1,0 GB".
+- O shell de login aparecia como "-bash" na lista de aplicativos.
+
 ## [2.4.0] - 2026-10-27
 
 ### Adicionado

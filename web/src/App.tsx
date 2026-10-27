@@ -6,17 +6,17 @@ import { useTheme } from './theme'
 import { CreateServerModal } from './components/CreateServer'
 import { bytes } from './format'
 import { useSnapshot } from './useSnapshot'
-import { ComputerBreakdown, MemoryBreakdown, memoryItems } from './components/Memory'
+import { MemoryPanel, memoryItems } from './components/Memory'
 import { ProjectPanel, ProjectsTableHead, ProjectTableRow, RunningRow } from './components/ProjectCard'
 import { WorktreeCleanup, WorktreeSummary } from './components/Worktrees'
-import { ComputerMemory, ConflictCard, OrphansCard, PortsCard, TemporariesNote } from './components/SystemPage'
+import { ConflictCard, OrphansCard, PortsCard, TemporariesNote } from './components/SystemPage'
 import { useReplyAlerts } from './alerts'
 import { AlertBell } from './components/AlertBell'
 import { SettingsModal } from './components/Settings'
 import { attentionItems, AttentionList, Kpis } from './components/Overview'
 import { MobileNav, Sidebar, type Badge } from './components/Nav'
 import { Search } from './components/Search'
-import { SwapCard } from './components/Swap'
+import { MemoryMeters, SwapCard, swapTone } from './components/Swap'
 import { DevRunsCard, DevRunsSummary } from './components/DevRuns'
 import { ProjectPicker } from './components/ProjectPicker'
 import { PAGES, usePage, type Page } from './pages'
@@ -270,34 +270,44 @@ export default function App() {
         </PageHeader>
         {error}
         <Kpis host={snap.host} memItems={memItems} colors={colors} claude={claude} projects={mainProjects} worktrees={worktrees.length} pressure={snap.pressure} go={go} />
-        <div className="flex flex-wrap items-start gap-[18px]">
-          <AttentionList items={attention} go={go} />
-          <div className="hidden min-w-0 flex-[2_1_280px] sm:flex">
-            <MemoryBreakdown items={memItems} colors={colors} history={history} />
+        {/* Esquerda: o que pede ação. Direita: um quadro só de memória, com abas. */}
+        <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-[18px] lg:grid-cols-[minmax(0,1fr)_minmax(0,25rem)] xl:grid-cols-[minmax(0,1fr)_minmax(0,29rem)]">
+          <div className="flex min-w-0 flex-col gap-[18px]">
+            <AttentionList items={attention} go={go} />
+          <section aria-labelledby="on-title" className="overflow-hidden rounded-[14px] border border-line bg-surface">
+            <header className="flex items-center gap-2.5 border-b border-line px-3.5 py-3 sm:px-[18px] sm:py-3.5">
+              <h2 id="on-title" className="text-[13px] font-semibold sm:text-sm">
+                Ligados agora
+              </h2>
+              <button type="button" onClick={() => go('projetos')} className="ml-auto hidden text-xs text-muted hover:text-fg sm:block">
+                Ver todos os projetos
+              </button>
+            </header>
+            {on.length === 0 ? (
+              <p className="px-[18px] py-5 text-sm text-faint">Nenhum projeto ligado agora.</p>
+            ) : (
+              <ul>
+                {on.map((p) => (
+                  <RunningRow key={p.key} project={p} onOpen={openProject} {...actions(p)} />
+                ))}
+              </ul>
+            )}
+          </section>
           </div>
-          <div className="hidden min-w-0 flex-[2_1_280px] sm:flex">
-            <ComputerBreakdown host={snap.host} apps={snap.apps ?? []} devRuns={devRuns} />
+          <div className="hidden min-w-0 sm:block">
+            <MemoryPanel
+              items={memItems}
+              colors={colors}
+              history={history}
+              host={snap.host}
+              apps={snap.apps ?? []}
+              swapApps={snap.swapApps ?? []}
+              devRuns={devRuns}
+              swapAlert={swapTone(snap.host, snap.pressure) !== 'on'}
+              onSwapDetails={() => go('sistema')}
+            />
           </div>
         </div>
-        <section aria-labelledby="on-title" className="overflow-hidden rounded-[14px] border border-line bg-surface">
-          <header className="flex items-center gap-2.5 border-b border-line px-3.5 py-3 sm:px-[18px] sm:py-3.5">
-            <h2 id="on-title" className="text-[13px] font-semibold sm:text-sm">
-              Ligados agora
-            </h2>
-            <button type="button" onClick={() => go('projetos')} className="ml-auto hidden text-xs text-muted hover:text-fg sm:block">
-              Ver todos os projetos
-            </button>
-          </header>
-          {on.length === 0 ? (
-            <p className="px-[18px] py-5 text-sm text-faint">Nenhum projeto ligado agora.</p>
-          ) : (
-            <ul>
-              {on.map((p) => (
-                <RunningRow key={p.key} project={p} onOpen={openProject} {...actions(p)} />
-              ))}
-            </ul>
-          )}
-        </section>
         {mobileFooter}
       </main>
     )
@@ -470,41 +480,36 @@ export default function App() {
       <main className={main}>
         <PageHeader page="sistema" />
         {error}
-        <div className="flex flex-wrap items-start gap-[18px]">
-          <section aria-labelledby="clean-title" className="flex min-w-0 flex-[3_1_520px] flex-col gap-3">
-            <h2 id="clean-title" className="text-sm font-semibold">
-              Para resolver
-            </h2>
-            {nothingToClean && (
-              <p className="flex items-center gap-2.5 rounded-[14px] border border-line bg-surface px-[18px] py-4 text-sm text-muted">
-                <Icon name="checkCircle" className="size-4 text-on-ink" />
-                Nenhum conflito de porta e nada para limpar.
-              </p>
-            )}
-            {snap.conflicts.map((c) => (
-              <ConflictCard key={c.id} c={c} />
-            ))}
-            {withWorktrees.map((m) => (
-              <WorktreeCleanup key={m.key} main={m.name} items={worktreesOf(m)} />
-            ))}
-            <DevRunsCard runs={devRuns} canStop={!!claude.canDelete} />
-            <OrphansCard orphans={snap.orphans ?? []} />
-            <TemporariesNote items={snap.temporary ?? []} />
-          </section>
-          <div className="flex min-w-0 flex-[2_1_340px] flex-col gap-[18px]">
-            <ComputerMemory host={snap.host} dev={devMem} apps={snap.apps ?? []} />
-            <SwapCard
-              host={snap.host}
-              pressure={snap.pressure}
-              claude={claude}
-              projects={mainProjects}
-              devRuns={devRuns}
-              apps={snap.swapApps ?? []}
-              onRestart={onRestart}
-              onSessions={() => go('sessoes')}
-            />
-          </div>
-        </div>
+        <MemoryMeters host={snap.host} dev={devMem} pressure={snap.pressure} />
+        <section aria-labelledby="clean-title" className="flex min-w-0 flex-col gap-3">
+          <h2 id="clean-title" className="text-sm font-semibold">
+            Para resolver
+          </h2>
+          {nothingToClean && (
+            <p className="flex items-center gap-2.5 rounded-[14px] border border-line bg-surface px-[18px] py-4 text-sm text-muted">
+              <Icon name="checkCircle" className="size-4 text-on-ink" />
+              Nenhum conflito de porta e nada para limpar.
+            </p>
+          )}
+          {snap.conflicts.map((c) => (
+            <ConflictCard key={c.id} c={c} />
+          ))}
+          {withWorktrees.map((m) => (
+            <WorktreeCleanup key={m.key} main={m.name} items={worktreesOf(m)} />
+          ))}
+          <DevRunsCard runs={devRuns} canStop={!!claude.canDelete} />
+          <OrphansCard orphans={snap.orphans ?? []} />
+          <TemporariesNote items={snap.temporary ?? []} />
+        </section>
+        <SwapCard
+          host={snap.host}
+          claude={claude}
+          projects={mainProjects}
+          devRuns={devRuns}
+          apps={snap.swapApps ?? []}
+          onRestart={onRestart}
+          onSessions={() => go('sessoes')}
+        />
         <PortsCard ports={snap.ports} />
         {mobileFooter}
       </main>
