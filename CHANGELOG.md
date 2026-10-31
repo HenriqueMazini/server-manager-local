@@ -11,6 +11,8 @@ Anote cada mudança em **Não lançado** no mesmo commit que a faz. O script
 
 ## [Não lançado]
 
+## [2.6.0] - 2026-10-30
+
 ### Adicionado
 - Disco no painel. Em Sistema e limpeza, um medidor do disco ao lado dos de memória (como o `df /`,
   com aviso em 85% e alerta em 95%, também em "Precisa da sua atenção") e a seção "Disco e Docker":
@@ -290,7 +292,8 @@ Primeira versão estável: projetos, sessões do Claude, memória, portas e aler
 - Inventário e conflitos de porta, com prompt para o Claude Code.
 - Guia `docs/ADICIONAR-PROJETO.md`.
 
-[Não lançado]: https://github.com/HenriqueMazini/server-manager-local/compare/v2.5.0...HEAD
+[Não lançado]: https://github.com/HenriqueMazini/server-manager-local/compare/v2.6.0...HEAD
+[2.6.0]: https://github.com/HenriqueMazini/server-manager-local/compare/v2.5.0...v2.6.0
 [2.5.0]: https://github.com/HenriqueMazini/server-manager-local/compare/v2.4.0...v2.5.0
 [2.4.0]: https://github.com/HenriqueMazini/server-manager-local/compare/v2.3.0...v2.4.0
 [2.3.0]: https://github.com/HenriqueMazini/server-manager-local/compare/v2.2.0...v2.3.0
