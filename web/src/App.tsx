@@ -17,6 +17,7 @@ import { attentionItems, AttentionList, Kpis } from './components/Overview'
 import { MobileNav, Sidebar, type Badge } from './components/Nav'
 import { Search } from './components/Search'
 import { MemoryMeters, SwapCard, swapTone } from './components/Swap'
+import { DiskMeter, DiskSection } from './components/Disk'
 import { DevRunsCard, DevRunsSummary } from './components/DevRuns'
 import { ProjectPicker } from './components/ProjectPicker'
 import { PAGES, usePage, type Page } from './pages'
@@ -480,7 +481,9 @@ export default function App() {
       <main className={main}>
         <PageHeader page="sistema" />
         {error}
-        <MemoryMeters host={snap.host} dev={devMem} pressure={snap.pressure} />
+        <MemoryMeters host={snap.host} dev={devMem} pressure={snap.pressure}>
+          {snap.disks?.[0] && <DiskMeter disk={snap.disks[0]} />}
+        </MemoryMeters>
         <section aria-labelledby="clean-title" className="flex min-w-0 flex-col gap-3">
           <h2 id="clean-title" className="text-sm font-semibold">
             Para resolver
@@ -501,6 +504,7 @@ export default function App() {
           <OrphansCard orphans={snap.orphans ?? []} />
           <TemporariesNote items={snap.temporary ?? []} />
         </section>
+        <DiskSection disk={snap.disks?.[0]} />
         <SwapCard
           host={snap.host}
           claude={claude}

@@ -1,3 +1,5 @@
+import type { DockerDisk } from './types'
+
 type Result = { name: string; ok: boolean; error?: string }
 
 // O backend recusa ações sem este header: outra aba do navegador não consegue enviá-lo.
@@ -127,6 +129,40 @@ export async function removeWorktrees(keys: string[], volumes: boolean): Promise
 // Encerra um servidor de desenvolvimento rodando fora do Docker (e os filhos), pelo ajudante da máquina.
 export async function stopDevRun(pid: number): Promise<{ stopped: number; memUsed: number }> {
   const res = await fetch(`/api/devruns/${pid}/stop`, { method: 'POST', headers: ACTION_HEADER })
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(body.error ?? `Falha (${res.status})`)
+  return body
+}
+
+// O que o Docker ocupa no disco. O servidor guarda alguns minutos; refresh recalcula.
+export async function fetchDisk(refresh = false): Promise<DockerDisk> {
+  const res = await fetch(`/api/disk${refresh ? '?refresh=1' : ''}`)
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(body.error ?? `Falha (${res.status})`)
+  return body
+}
+
+export type PruneKind = 'build' | 'build-all' | 'volumes' | 'images'
+
+// Uma limpeza do Docker. Volumes com nome não entram: só removeVolumes, um a um.
+export async function pruneDisk(kind: PruneKind): Promise<{ reclaimed: number; count: number }> {
+  const res = await fetch('/api/disk/prune', {
+    method: 'POST',
+    headers: { ...ACTION_HEADER, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ kind }),
+  })
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(body.error ?? `Falha (${res.status})`)
+  return body
+}
+
+// Apaga volumes com nome escolhidos. O servidor só aceita os que listou como sem uso.
+export async function removeVolumes(names: string[]): Promise<{ results: { name: string; ok: boolean; error?: string }[]; reclaimed: number }> {
+  const res = await fetch('/api/disk/volumes/remove', {
+    method: 'POST',
+    headers: { ...ACTION_HEADER, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ names }),
+  })
   const body = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(body.error ?? `Falha (${res.status})`)
   return body

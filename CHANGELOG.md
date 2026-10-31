@@ -11,6 +11,20 @@ Anote cada mudança em **Não lançado** no mesmo commit que a faz. O script
 
 ## [Não lançado]
 
+### Adicionado
+- Disco no painel. Em Sistema e limpeza, um medidor do disco ao lado dos de memória (como o `df /`,
+  com aviso em 85% e alerta em 95%, também em "Precisa da sua atenção") e a seção "Disco e Docker":
+  quanto ocupam o cache de build, as imagens, os volumes e os containers, e quanto dá para liberar.
+- Limpezas com confirmação mostrando antes o que sai e quanto libera: cache de build (padrão, que
+  mantém o cache útil, ou tudo, avisando que os builds vão demorar), volumes anônimos sem uso e imagens
+  sem uso (avisando quais foram construídas aqui e só voltam com um novo build). Volumes com nome nunca
+  em massa: aparecem por projeto, com tamanho e data, e só saem os que você marcar.
+- "De onde vem o acúmulo": o painel acompanha os eventos do Docker e conta os volumes anônimos criados
+  por semana e a imagem e o projeto que os montou (em `data/volumes.json`), com a correção sugerida
+  (`--rm`, `tmpfs`, `docker rm -v`, `docker compose down -v`) e um prompt pronto para o Claude Code.
+- O uso do Docker vem do `docker system df` detalhado, calculado sob demanda e guardado por 5 minutos
+  (com centenas de volumes leva segundos); o uso do disco vem de `statfs`, sem ler `/proc`.
+
 ## [2.5.0] - 2026-10-27
 
 ### Alterado

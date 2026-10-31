@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import type { ClaudeSummary, HostMem, Pressure, Project, Snapshot } from '../types'
 import { OOMD_SWAP, SwapKpiBody, swapPct, swapTone } from './Swap'
+import { diskPct, diskTone } from './Disk'
 import type { Page } from '../pages'
 import { bytes, bytesParts, percent } from '../format'
 import { StackBar, type MemoryItem } from './Memory'
@@ -97,6 +98,20 @@ export function attentionItems(snap: Snapshot, worktrees: Project[]): Attention[
       title: `Swap em ${Math.round(swapPct(snap.host))}%${pressure >= 10 ? ` e pressão de memória em ${pressure.toFixed(0)}%` : ''}`,
       detail: `${bytes(snap.host.swapUsed)} de ${bytes(snap.host.swapTotal)} · o sistema encerra processos a partir de ${OOMD_SWAP}%`,
       action: 'Ver',
+      page: 'sistema',
+    })
+  }
+  // Disco enchendo: o Docker (cache de build, volumes de teste) costuma ser o culpado.
+  const disk = snap.disks?.[0]
+  const dTone = diskTone(disk)
+  if (disk && dTone !== 'on') {
+    out.push({
+      key: 'disk',
+      tone: dTone,
+      icon: 'alert',
+      title: `Disco em ${Math.round(diskPct(disk))}%${dTone === 'danger' ? ': quase cheio' : ''}`,
+      detail: `${bytes(disk.free)} livres de ${bytes(disk.total)} · veja o que o Docker ocupa e limpe`,
+      action: 'Limpar',
       page: 'sistema',
     })
   }

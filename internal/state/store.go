@@ -13,6 +13,7 @@ import (
 	"servermanager/internal/claude"
 	"servermanager/internal/config"
 	"servermanager/internal/devprocs"
+	"servermanager/internal/diskx"
 	"servermanager/internal/dockerx"
 	"servermanager/internal/hostinfo"
 	"servermanager/internal/labels"
@@ -70,11 +71,12 @@ type Store struct {
 	listErr error
 	snap    model.Snapshot
 	subs    map[chan model.Snapshot]struct{}
+	disk    *Disk
 }
 
 // New cria o Store.
 func New(dc *dockerx.Client, cfg *config.Loader, lb *labels.Store) *Store {
-	return &Store{dc: dc, cfg: cfg, labels: lb, poke: make(chan struct{}, 1), subs: map[chan model.Snapshot]struct{}{}}
+	return &Store{dc: dc, cfg: cfg, labels: lb, poke: make(chan struct{}, 1), subs: map[chan model.Snapshot]struct{}{}, disk: newDisk(dc)}
 }
 
 // Poke pede uma releitura imediata dos containers.
@@ -88,6 +90,7 @@ func (s *Store) Poke() {
 // Run atualiza o estado até o contexto acabar.
 func (s *Store) Run(ctx context.Context) {
 	go s.dc.WatchEvents(ctx, s.Poke)
+	go s.disk.watch(ctx)
 	s.reload(ctx)
 	s.tick(ctx)
 	t := time.NewTicker(Interval)
@@ -200,6 +203,8 @@ func (s *Store) tick(ctx context.Context) {
 	snap.SwapApps = procfs.TopSwap(procs, 8)
 	snap.DevRuns = devprocs.Find(procs, snap.Projects, config.ProjectsRoot(), config.HostHome)
 	containerSwap(snap.Projects, procs)
+	// Onde fica o Docker (a raiz do container fica no mesmo disco) e a pasta pessoal, se for outro.
+	snap.Disks = diskx.Filesystems("/", config.HostHome)
 	if ProcRoot != "" {
 		snap.Pressure = hostinfo.ReadPressure(ProcRoot)
 	}
@@ -269,6 +274,9 @@ func (s *Store) Subscribe() (<-chan model.Snapshot, func()) {
 		s.mu.Unlock()
 	}
 }
+
+// Disk é o relatório de disco do Docker, com cache.
+func (s *Store) Disk() *Disk { return s.disk }
 
 // Infos devolve a última lista de containers lida do Docker.
 func (s *Store) Infos() []dockerx.Info {

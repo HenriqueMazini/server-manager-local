@@ -59,6 +59,7 @@ func main() {
 
 	lb := labels.New(filepath.Join(dataDir, "apelidos.json"))
 	state.HelperSocket = filepath.Join(dataDir, "ajudante.sock")
+	state.VolumeHistoryFile = filepath.Join(dataDir, "volumes.json")
 	st := state.New(dc, config.NewLoader(cfgPath), lb)
 	go st.Run(ctx)
 

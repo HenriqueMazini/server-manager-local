@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import type { ClaudeSummary, DevRun, HostApp, HostMem, Pressure, Project } from '../types'
 import { bytes, bytesParts, percent } from '../format'
 import { devGroups } from './DevRuns'
@@ -60,7 +61,7 @@ export function SwapKpiBody({ host, pressure }: { host: HostMem; pressure?: Pres
 
 // Três medidores do computador, lado a lado: RAM, swap e pressão de memória, cada um com o limite
 // em que o sistema começa a encerrar processos.
-export function MemoryMeters({ host, dev, pressure }: { host: HostMem; dev: number; pressure?: Pressure }) {
+export function MemoryMeters({ host, dev, pressure, children }: { host: HostMem; dev: number; pressure?: Pressure; children?: ReactNode }) {
   const w = (n: number) => `${host.total ? Math.min((n / host.total) * 100, 100) : 0}%`
   const others = Math.max(host.used - dev, 0)
   const sTone = swapTone(host)
@@ -69,7 +70,7 @@ export function MemoryMeters({ host, dev, pressure }: { host: HostMem; dev: numb
   const card = 'flex min-w-0 flex-col gap-2.5 rounded-[14px] border border-line bg-surface px-[18px] py-4'
   const label = 'text-[11px] uppercase tracking-[0.1em] text-faint'
   return (
-    <section aria-label="Memória do computador" className="grid grid-cols-[repeat(auto-fit,minmax(15rem,1fr))] gap-3.5">
+    <section aria-label="Memória e disco do computador" className="grid grid-cols-[repeat(auto-fit,minmax(14rem,1fr))] gap-3.5">
       <div className={card}>
         <span className={label}>RAM</span>
         <span className="flex items-baseline gap-1.5">
@@ -133,6 +134,7 @@ export function MemoryMeters({ host, dev, pressure }: { host: HostMem; dev: numb
           <span className="text-sm text-faint">Indisponível neste computador.</span>
         )}
       </div>
+      {children}
     </section>
   )
 }

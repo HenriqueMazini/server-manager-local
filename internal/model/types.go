@@ -189,6 +189,7 @@ type Snapshot struct {
 	DevRuns   []DevRun       `json:"devRuns"`   // servidores de desenvolvimento rodando fora do Docker
 	Pressure  Pressure       `json:"pressure"`
 	SwapApps  []procfs.App   `json:"swapApps"` // aplicativos com mais memória no swap
+	Disks     []DiskFS       `json:"disks"`    // disco onde fica o Docker e, se for outro, o da pasta pessoal
 }
 
 // DevRun é um servidor de desenvolvimento rodando direto no computador, fora do Docker: o processo que foi iniciado (npm run dev) e tudo abaixo dele.
@@ -205,4 +206,76 @@ type DevRun struct {
 	Procs       int      `json:"procs"`
 	Orphan      bool     `json:"orphan"` // quem iniciou já fechou: o processo ficou pendurado no systemd
 	Programs    []string `json:"programs"`
+}
+
+// DiskFS é o uso de um sistema de arquivos do computador (como o df), em bytes.
+type DiskFS struct {
+	Path  string `json:"path"`
+	Total uint64 `json:"total"`
+	Used  uint64 `json:"used"`
+	Free  uint64 `json:"free"` // disponível para o usuário
+}
+
+// DiskCategory é uma categoria do docker system df: o total e quanto dá para liberar.
+type DiskCategory struct {
+	Count       int    `json:"count"`
+	Active      int    `json:"active"`
+	Total       uint64 `json:"total"`
+	Reclaimable uint64 `json:"reclaimable"`
+}
+
+// DiskImage é uma imagem sem container usando.
+type DiskImage struct {
+	ID      string    `json:"id"`
+	Tags    []string  `json:"tags"`
+	Size    uint64    `json:"size"`
+	Created time.Time `json:"created"`
+	Local   bool      `json:"local"` // construída aqui (sem digest de registro): só volta com um novo build
+}
+
+// DiskVolume é um volume sem container usando.
+type DiskVolume struct {
+	Name      string    `json:"name"`
+	Project   string    `json:"project,omitempty"` // projeto do compose (label), ou o prefixo do nome
+	Size      uint64    `json:"size"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
+// DockerDisk é o que o Docker ocupa no disco, por categoria, e o que está sem uso. Calculado sob
+// demanda e guardado alguns minutos: com centenas de volumes, o cálculo leva segundos.
+type DockerDisk struct {
+	At           time.Time     `json:"at"`
+	Error        string        `json:"error,omitempty"`
+	Build        DiskCategory  `json:"build"`
+	Images       DiskCategory  `json:"images"`
+	Containers   DiskCategory  `json:"containers"`
+	Volumes      DiskCategory  `json:"volumes"`
+	AnonUnused   DiskCategory  `json:"anonUnused"` // volumes anônimos sem uso: Count e Total
+	AnonSample   []DiskVolume  `json:"anonSample"` // os maiores, para mostrar antes de apagar
+	NamedUnused  []DiskVolume  `json:"namedUnused"`
+	UnusedImages []DiskImage   `json:"unusedImages"`
+	History      VolumeHistory `json:"history"`
+}
+
+// VolumeHistory conta os volumes anônimos criados por semana e quem os criou, a partir dos eventos
+// do Docker que o painel acompanha (gravado em data/volumes.json).
+type VolumeHistory struct {
+	Since   time.Time      `json:"since"`
+	Weeks   []WeekCount    `json:"weeks"`
+	Sources []VolumeSource `json:"sources"`
+}
+
+// WeekCount é quantos volumes anônimos foram criados na semana que começa em Week (segunda-feira).
+type WeekCount struct {
+	Week  string `json:"week"`
+	Count int    `json:"count"`
+}
+
+// VolumeSource é a imagem (e o projeto ou ferramenta) que montou volumes anônimos novos.
+type VolumeSource struct {
+	Image  string    `json:"image"`
+	Origin string    `json:"origin,omitempty"` // projeto do compose, "testcontainers", ou vazio
+	Dir    string    `json:"dir,omitempty"`    // pasta do projeto, quando o compose informa
+	Count  int       `json:"count"`
+	Last   time.Time `json:"last"`
 }

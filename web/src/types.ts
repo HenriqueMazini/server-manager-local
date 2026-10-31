@@ -169,4 +169,32 @@ export type Snapshot = {
   devRuns?: DevRun[]
   pressure?: Pressure
   swapApps?: HostApp[]
+  disks?: DiskFS[]
+}
+
+export type DiskFS = { path: string; total: number; used: number; free: number }
+
+export type DiskCategory = { count: number; active: number; total: number; reclaimable: number }
+
+export type DiskImage = { id: string; tags: string[]; size: number; created: string; local: boolean }
+
+export type DiskVolume = { name: string; project?: string; size: number; createdAt: string }
+
+export type VolumeSource = { image: string; origin?: string; dir?: string; count: number; last: string }
+
+export type VolumeHistory = { since: string; weeks: { week: string; count: number }[]; sources: VolumeSource[] }
+
+// O que o Docker ocupa no disco (docker system df), calculado sob demanda.
+export type DockerDisk = {
+  at: string
+  error?: string
+  build: DiskCategory
+  images: DiskCategory
+  containers: DiskCategory
+  volumes: DiskCategory
+  anonUnused: DiskCategory
+  anonSample: DiskVolume[]
+  namedUnused: DiskVolume[]
+  unusedImages: DiskImage[]
+  history: VolumeHistory
 }

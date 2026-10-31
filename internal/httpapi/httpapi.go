@@ -47,6 +47,9 @@ func Handler(st *state.Store, dc *dockerx.Client, lb *labels.Store, web fs.FS) h
 	mux.HandleFunc("POST /api/claude/sessions/{pid}/delete", a.deleteSession)
 	mux.HandleFunc("POST /api/claude/closed/{id}/delete", a.deleteClosed)
 	mux.HandleFunc("POST /api/devruns/{pid}/stop", a.stopDevRun)
+	mux.HandleFunc("GET /api/disk", a.disk)
+	mux.HandleFunc("POST /api/disk/prune", a.diskPrune)
+	mux.HandleFunc("POST /api/disk/volumes/remove", a.removeVolumes)
 	mux.HandleFunc("POST /api/projects/{key}/{action}", a.projectAction)
 	mux.HandleFunc("GET /api/containers/{id}/logs", a.logs)
 	mux.HandleFunc("POST /api/analyze", a.analyze)
@@ -463,4 +466,90 @@ func spa(web fs.FS) http.Handler {
 		}
 		files.ServeHTTP(w, r)
 	})
+}
+
+// disk devolve o que o Docker ocupa no disco. Calculado sob demanda e guardado alguns minutos;
+// ?refresh=1 recalcula.
+func (a *api) disk(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, a.st.Disk().Report(r.Context(), r.URL.Query().Get("refresh") == "1"))
+}
+
+// diskPrune roda uma das limpezas do Docker: cache de build (padrão ou completo), volumes anônimos sem
+// uso ou imagens sem uso. Volumes com nome nunca entram aqui: só um a um, em removeVolumes.
+func (a *api) diskPrune(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Kind string `json:"kind"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1024)).Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "corpo inválido"})
+		return
+	}
+	ctx, cancel := actionCtx(r)
+	defer cancel()
+	var (
+		space uint64
+		count int
+		err   error
+	)
+	switch body.Kind {
+	case "build":
+		space, count, err = a.dc.PruneBuildCache(ctx, false)
+	case "build-all":
+		space, count, err = a.dc.PruneBuildCache(ctx, true)
+	case "volumes":
+		space, count, err = a.dc.PruneAnonymousVolumes(ctx)
+	case "images":
+		space, count, err = a.dc.PruneUnusedImages(ctx)
+	default:
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "limpeza desconhecida"})
+		return
+	}
+	a.st.Disk().Invalidate()
+	if err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"reclaimed": space, "count": count})
+}
+
+// removeVolumes apaga volumes com nome escolhidos um a um. Só aceita nomes que o último relatório
+// listou como sem uso, e o Docker ainda recusa se algum container passou a usar.
+func (a *api) removeVolumes(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Names []string `json:"names"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 64*1024)).Decode(&body); err != nil || len(body.Names) == 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "informe os volumes"})
+		return
+	}
+	unused := map[string]uint64{}
+	for _, v := range a.st.Disk().Report(r.Context(), false).NamedUnused {
+		unused[v.Name] = v.Size
+	}
+	ctx, cancel := actionCtx(r)
+	defer cancel()
+	type result struct {
+		Name  string `json:"name"`
+		OK    bool   `json:"ok"`
+		Error string `json:"error,omitempty"`
+	}
+	var (
+		results []result
+		freed   uint64
+	)
+	for _, name := range body.Names {
+		size, ok := unused[name]
+		if !ok {
+			results = append(results, result{Name: name, Error: "não está na lista de volumes sem uso"})
+			continue
+		}
+		if err := a.dc.RemoveVolume(ctx, name); err != nil {
+			results = append(results, result{Name: name, Error: err.Error()})
+			continue
+		}
+		freed += size
+		results = append(results, result{Name: name, OK: true})
+	}
+	a.st.Disk().Invalidate()
+	writeJSON(w, http.StatusOK, map[string]any{"results": results, "reclaimed": freed})
 }
